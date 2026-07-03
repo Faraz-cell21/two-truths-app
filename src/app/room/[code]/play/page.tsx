@@ -13,6 +13,7 @@ import VotePanel from "@/components/VotePanel";
 import RevealPanel from "@/components/RevealPanel";
 import Scoreboard from "@/components/Scoreboard";
 import CopyLinkButton from "@/components/CopyLinkButton";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import type { Room, Round, RoundPublicView, Player, Vote, ScoreDelta } from "@/types/game";
 import type { SubmitResponse, RoundGetSuccessResponse } from "@/types/api";
 
@@ -620,6 +621,10 @@ export default function PlayPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeSwitcher />
+      </div>
+
       <div className="w-full max-w-lg space-y-6">
         {/* ---- Player status bar ---- */}
         {("room" in state) && (

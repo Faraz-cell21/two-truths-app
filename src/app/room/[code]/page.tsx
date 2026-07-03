@@ -10,6 +10,7 @@ import {
 } from "@/lib/pusher/client";
 import PlayerSlot from "@/components/PlayerSlot";
 import CopyLinkButton from "@/components/CopyLinkButton";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import type { Room, Player } from "@/types/game";
 
 /* ===================================================================
@@ -229,6 +230,10 @@ export default function LobbyPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeSwitcher />
+      </div>
+
       <div className="w-full max-w-lg space-y-8">
         {/* ---- Headline ---- */}
         <header className="text-center space-y-3">

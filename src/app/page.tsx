@@ -10,6 +10,7 @@ import {
   getStoredRoomCode,
   clearStoredRoomCode,
 } from "@/lib/session";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import type { JoinResponse, JoinAction } from "@/types/api";
 import type { Room, TargetSize } from "@/types/game";
 
@@ -163,6 +164,11 @@ export default function HomePage() {
   /* ---- render ---- */
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+      {/* Theme toggle — top-right */}
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeSwitcher />
+      </div>
+
       <div className="w-full max-w-md space-y-8">
         {/* ---- Headline ---- */}
         <header className="text-center space-y-3">

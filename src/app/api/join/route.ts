@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { RoomModel } from "@/models/Room";
 import { generateRoomCode } from "@/lib/roomCode";
+import { serializeRoom } from "@/lib/serializeRoom";
 import {
   pusherServer,
   getRoomChannelName,
@@ -13,45 +14,6 @@ import type { Room, TargetSize } from "@/types/game";
 const VALID_TARGET_SIZES: TargetSize[] = [2, 3, 4, 5];
 const ROOM_LIFETIME_MS = 4 * 60 * 60 * 1000; // 4 hours
 const MAX_ROOM_CODE_ATTEMPTS = 5;
-
-/**
- * Converts a Mongoose document into the plain Room shape our API/client
- * code expects, so we're never leaking Mongoose internals (like _id,
- * __v, or Date objects instead of ISO strings) to the frontend.
- */
-function serializeRoom(doc: {
-  roomCode: string;
-  mode: "random" | "private";
-  targetSize: number;
-  status: "waiting" | "playing" | "finished";
-  currentRound: number;
-  players: Array<{
-    sessionId: string;
-    displayName: string;
-    joinedAt: Date;
-    connected: boolean;
-    score: number;
-  }>;
-  createdAt: Date;
-  expiresAt: Date;
-}): Room {
-  return {
-    roomCode: doc.roomCode,
-    mode: doc.mode,
-    targetSize: doc.targetSize as TargetSize,
-    status: doc.status,
-    currentRound: doc.currentRound,
-    players: doc.players.map((p) => ({
-      sessionId: p.sessionId,
-      displayName: p.displayName,
-      joinedAt: p.joinedAt.toISOString(),
-      connected: p.connected,
-      score: p.score,
-    })),
-    createdAt: doc.createdAt.toISOString(),
-    expiresAt: doc.expiresAt.toISOString(),
-  };
-}
 
 /**
  * Notifies everyone already in the room (via Pusher) that a new player

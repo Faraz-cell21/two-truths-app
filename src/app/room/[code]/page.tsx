@@ -9,6 +9,7 @@ import {
   PUSHER_EVENTS,
 } from "@/lib/pusher/client";
 import PlayerSlot from "@/components/PlayerSlot";
+import CopyLinkButton from "@/components/CopyLinkButton";
 import type { Room, Player } from "@/types/game";
 
 /* ===================================================================
@@ -179,10 +180,20 @@ export default function LobbyPage() {
   /* ---- Loading ---- */
   if (state.phase === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="font-mono text-sm text-muted animate-pulse">
-          Accessing case file…
-        </p>
+      <main className="flex min-h-screen items-center justify-center px-4">
+        <div className="w-full max-w-lg space-y-6 animate-fade-in">
+          <div className="text-center space-y-3">
+            <div className="skeleton mx-auto h-8 w-64" />
+            <div className="skeleton mx-auto h-0.5 w-48" />
+            <div className="skeleton mx-auto h-4 w-56" />
+          </div>
+          <div className="skeleton mx-auto h-12 w-80" />
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="skeleton h-20 w-full" />
+            ))}
+          </div>
+        </div>
       </main>
     );
   }
@@ -250,6 +261,9 @@ export default function LobbyPage() {
           <p className="text-xs text-muted/60">
             Share this code with the other players
           </p>
+          <div className="flex justify-center pt-2">
+            <CopyLinkButton roomCode={room.roomCode} variant="compact" />
+          </div>
         </div>
 
         {/* ---- Player slots ---- */}

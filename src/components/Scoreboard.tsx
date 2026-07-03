@@ -62,11 +62,18 @@ export default function Scoreboard({
         <hr className="polygraph-line" />
 
         {isGameOver ? (
-          <p className="text-muted">
-            {isTie
-              ? "It's a tie! The detectives are evenly matched."
-              : `${ranked[0]?.displayName} wins the case!`}
-          </p>
+          <div className="space-y-2">
+            {!isTie && (
+              <span className="inline-block text-4xl" aria-hidden>
+                &#127942;
+              </span>
+            )}
+            <p className="text-muted">
+              {isTie
+                ? "It's a tie! The detectives are evenly matched."
+                : `${ranked[0]?.displayName} wins the case!`}
+            </p>
+          </div>
         ) : (
           <p className="text-sm text-muted">
             Round {currentRound - 1} of {totalRounds} complete
@@ -88,7 +95,9 @@ export default function Scoreboard({
               className={
                 "interrogation-card flex items-center gap-4 " +
                 (isSelf ? "ring-1 ring-truth/40" : "") +
-                (isLeader && isGameOver ? " border-truth/30" : "")
+                (isLeader && isGameOver && !isTie
+                  ? " border-truth/40 animate-pulse-glow"
+                  : "")
               }
             >
               {/* Rank */}

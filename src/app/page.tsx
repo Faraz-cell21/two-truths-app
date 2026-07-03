@@ -342,6 +342,43 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+
+        {/* ---- How to Play ---- */}
+        <details className="interrogation-card cursor-pointer group">
+          <summary className="text-sm font-medium text-muted uppercase tracking-widest list-none flex items-center justify-between">
+            How to play
+            <span className="text-muted/60 text-xs transition-transform group-open:rotate-180">
+              ▼
+            </span>
+          </summary>
+          <div className="mt-4 space-y-3 text-sm text-muted leading-relaxed">
+            <p>
+              <span className="font-semibold text-warm">1. Join or create</span>{" "}
+              a room — choose your room size (2-5 players). Share the code with
+              friends, or hop into a random match.
+            </p>
+            <p>
+              <span className="font-semibold text-warm">2. Each round,</span>{" "}
+              one player writes three statements — two are true, one is a lie.
+              Mark the lie before submitting.
+            </p>
+            <p>
+              <span className="font-semibold text-warm">3. Everyone else</span>{" "}
+              votes on which statement they think is the lie. You have 30
+              seconds to cast your vote.
+            </p>
+            <p>
+              <span className="font-semibold text-warm">4. Scoring:</span> +1
+              point for guessing the lie correctly. +1 point to the writer for
+              each player they fooled.
+            </p>
+            <p>
+              <span className="font-semibold text-warm">5. After everyone</span>{" "}
+              has had a turn submitting, the detective with the most points wins
+              the case.
+            </p>
+          </div>
+        </details>
       </div>
     </main>
   );

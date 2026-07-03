@@ -125,8 +125,9 @@ export default function RevealPanel({
               <span
                 className={
                   "font-mono text-sm font-bold " +
-                  (d.delta > 0 ? "text-truth" : "text-muted")
+                  (d.delta > 0 ? "text-truth animate-score-pop" : "text-muted")
                 }
+                key={`delta-${d.sessionId}-${d.delta}`}
               >
                 {d.delta > 0 ? `+${d.delta}` : "—"}
               </span>

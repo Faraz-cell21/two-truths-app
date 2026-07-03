@@ -12,6 +12,7 @@ import StatementForm from "@/components/StatementForm";
 import VotePanel from "@/components/VotePanel";
 import RevealPanel from "@/components/RevealPanel";
 import Scoreboard from "@/components/Scoreboard";
+import CopyLinkButton from "@/components/CopyLinkButton";
 import type { Room, Round, RoundPublicView, Player, Vote, ScoreDelta } from "@/types/game";
 import type { SubmitResponse, RoundGetSuccessResponse } from "@/types/api";
 
@@ -564,10 +565,20 @@ export default function PlayPage() {
   /* ---- Loading ---- */
   if (state.phase === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="font-mono text-sm text-muted animate-pulse">
-          Loading case file…
-        </p>
+      <main className="flex min-h-screen items-center justify-center px-4">
+        <div className="w-full max-w-lg space-y-6 animate-fade-in">
+          <div className="text-center space-y-3">
+            <div className="skeleton mx-auto h-4 w-48" />
+            <div className="skeleton mx-auto h-4 w-32" />
+          </div>
+          <div className="skeleton mx-auto h-12 w-24 rounded-full" />
+          <div className="skeleton mx-auto h-8 w-72" />
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="skeleton h-24 w-full" />
+            ))}
+          </div>
+        </div>
       </main>
     );
   }
@@ -594,10 +605,13 @@ export default function PlayPage() {
   /* ---- Shared layout wrapper ---- */
   const renderHeader = (room: Room) => (
     <header className="text-center space-y-1">
-      <p className="text-xs uppercase tracking-[0.3em] text-muted">
-        Case file{" "}
-        <span className="font-mono text-warm">{room.roomCode}</span>
-      </p>
+      <div className="flex items-center justify-center gap-3">
+        <p className="text-xs uppercase tracking-[0.3em] text-muted">
+          Case file{" "}
+          <span className="font-mono text-warm">{room.roomCode}</span>
+        </p>
+        <CopyLinkButton roomCode={room.roomCode} variant="compact" />
+      </div>
       <p className="text-xs text-muted/60">
         Round {room.currentRound} of {room.players.length}
       </p>
@@ -637,14 +651,14 @@ export default function PlayPage() {
 
         {/* ---- Phase-specific content ---- */}
         {state.phase === "submit" && (
-          <>
+          <div className="animate-fade-in-up space-y-6" key="submit">
             {renderHeader(state.room)}
             <StatementForm onSubmit={handleSubmit} loading={false} />
-          </>
+          </div>
         )}
 
         {state.phase === "awaiting_statements" && (
-          <>
+          <div className="animate-fade-in-up space-y-6" key="awaiting_statements">
             {renderHeader(state.room)}
             <div className="interrogation-card text-center space-y-4">
               <h2 className="font-serif text-lg font-semibold text-warm">
@@ -667,11 +681,11 @@ export default function PlayPage() {
                 ))}
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {state.phase === "vote" && (
-          <>
+          <div className="animate-fade-in-up space-y-6" key="vote">
             {renderHeader(state.room)}
             <VotePanel
               statements={state.round.statements}
@@ -682,11 +696,11 @@ export default function PlayPage() {
               hasVoted={false}
               votedIndex={state.votedIndex}
             />
-          </>
+          </div>
         )}
 
         {state.phase === "awaiting_votes" && (
-          <>
+          <div className="animate-fade-in-up space-y-6" key="awaiting_votes">
             {renderHeader(state.room)}
             <div className="interrogation-card text-center space-y-4">
               <h2 className="font-serif text-lg font-semibold text-warm">
@@ -723,11 +737,11 @@ export default function PlayPage() {
                 )}
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {state.phase === "reveal" && (
-          <>
+          <div className="animate-fade-in-up space-y-6" key="reveal">
             {renderHeader(state.room)}
             <RevealPanel
               statements={state.round.statements}
@@ -744,31 +758,35 @@ export default function PlayPage() {
             <p className="text-center text-xs text-muted/60">
               Auto-advancing in a few seconds…
             </p>
-          </>
+          </div>
         )}
 
         {state.phase === "scoreboard" && (
-          <Scoreboard
-            players={state.room.players}
-            currentRound={state.room.currentRound}
-            totalRounds={state.room.players.length}
-            isGameOver={(state as { isGameOver: boolean }).isGameOver}
-            currentPlayerSessionId={state.sessionId}
-            onContinue={handleScoreboardContinue}
-            onPlayAgain={handlePlayAgain}
-          />
+          <div className="animate-fade-in-up space-y-6" key="scoreboard">
+            <Scoreboard
+              players={state.room.players}
+              currentRound={state.room.currentRound}
+              totalRounds={state.room.players.length}
+              isGameOver={(state as { isGameOver: boolean }).isGameOver}
+              currentPlayerSessionId={state.sessionId}
+              onContinue={handleScoreboardContinue}
+              onPlayAgain={handlePlayAgain}
+            />
+          </div>
         )}
 
         {state.phase === "finished" && (
-          <Scoreboard
-            players={state.room.players}
-            currentRound={state.room.players.length}
-            totalRounds={state.room.players.length}
-            isGameOver={true}
-            currentPlayerSessionId={state.sessionId}
-            onContinue={() => {}}
-            onPlayAgain={handlePlayAgain}
-          />
+          <div className="animate-fade-in-up space-y-6" key="finished">
+            <Scoreboard
+              players={state.room.players}
+              currentRound={state.room.players.length}
+              totalRounds={state.room.players.length}
+              isGameOver={true}
+              currentPlayerSessionId={state.sessionId}
+              onContinue={() => {}}
+              onPlayAgain={handlePlayAgain}
+            />
+          </div>
         )}
       </div>
     </main>

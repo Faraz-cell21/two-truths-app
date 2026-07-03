@@ -49,3 +49,11 @@ export interface RoundPublicView {
   votes: Vote[];
   revealedAt: string | null;
 }
+
+/** Per-player score change after a round is revealed. */
+export interface ScoreDelta {
+  sessionId: string;
+  displayName: string;
+  delta: number;
+  reason: "correct-guess" | "fooled" | "none";
+}

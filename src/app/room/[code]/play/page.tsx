@@ -486,13 +486,16 @@ export default function PlayPage() {
         throw new Error("error" in json ? json.error : "Submit failed");
       }
 
-      setState({
-        phase: "awaiting_votes",
-        room: state.room,
-        round: json.round,
-        sessionId: state.sessionId,
-        votes: [],
-        playerCount: state.room.players.length,
+      setState((prev) => {
+        if (prev.phase !== "submit") return prev;
+        return {
+          phase: "awaiting_votes",
+          room: prev.room,
+          round: json.round,
+          sessionId: prev.sessionId,
+          votes: [],
+          playerCount: prev.room.players.length,
+        };
       });
     },
     [state, roomCode]
@@ -519,13 +522,16 @@ export default function PlayPage() {
         throw new Error("error" in json ? json.error : "Vote failed");
       }
 
-      setState({
-        phase: "awaiting_votes",
-        room: state.room,
-        round: state.round,
-        sessionId: state.sessionId,
-        votes: [], // will be updated by VOTE_CAST events
-        playerCount: state.room.players.length,
+      setState((prev) => {
+        if (prev.phase !== "vote") return prev;
+        return {
+          phase: "awaiting_votes",
+          room: prev.room,
+          round: prev.round,
+          sessionId: prev.sessionId,
+          votes: [],
+          playerCount: prev.room.players.length,
+        };
       });
     },
     [state, roomCode]

@@ -261,10 +261,11 @@ export default function LobbyPage() {
   const room = state.room;
   const sessionId = state.phase === "active" ? state.sessionId : "";
   const isStarting = state.phase === "starting";
-  const playerCount = room.players.length;
+  const connectedPlayers = room.players.filter((p) => p.connected);
+  const playerCount = connectedPlayers.length;
   const slots: (Player | null)[] = Array.from(
     { length: room.targetSize },
-    (_, i) => room.players[i] ?? null
+    (_, i) => connectedPlayers[i] ?? null
   );
 
   return (

@@ -122,6 +122,13 @@ export async function POST(
 
   await connectToDatabase();
 
+  // Remove this session from any other rooms they were in, so they don't
+  // linger as a ghost player in a previous lobby or game.
+  await RoomModel.updateMany(
+    { "players.sessionId": sessionId, roomCode: { $ne: body.roomCode ?? "" } },
+    { $pull: { players: { sessionId } } }
+  );
+
   const now = new Date();
   const expiresAt = new Date(now.getTime() + ROOM_LIFETIME_MS);
 

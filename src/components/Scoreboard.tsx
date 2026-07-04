@@ -82,7 +82,7 @@ export default function Scoreboard({
       <div className="space-y-2">
         {ranked.map((player, rank) => {
           const isSelf = player.sessionId === currentPlayerSessionId;
-          const isLeader = rank === 0 && player.score > 0;
+          const isLeader = player.score === topScore && player.score > 0;
 
           return (
             <div
@@ -117,11 +117,6 @@ export default function Scoreboard({
                   {isGameOver && !isTie && isLeader && (
                     <span className="mr-1.5" aria-hidden>
                       &#127942;
-                    </span>
-                  )}
-                  {isGameOver && isTie && isLeader && (
-                    <span className="mr-1.5" aria-hidden>
-                      &#129309;
                     </span>
                   )}
                   {player.displayName}

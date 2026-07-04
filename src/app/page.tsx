@@ -37,7 +37,8 @@ export default function HomePage() {
 
   const [sessionId, setSessionId] = useState<string>("");
   const [displayName, setDisplayName] = useState<string>("");
-  const [targetSize, setTargetSize] = useState<TargetSize>(3);
+  const [randomTargetSize, setRandomTargetSize] = useState<TargetSize>(3);
+  const [privateTargetSize, setPrivateTargetSize] = useState<TargetSize>(3);
   const [roomCode, setRoomCode] = useState<string>("");
   const [state, setState] = useState<PageState>({ phase: "idle" });
   const [rejoin, setRejoin] = useState<RejoinState>({ phase: "checking" });
@@ -107,7 +108,6 @@ export default function HomePage() {
       }
 
       setStoredDisplayName(name);
-      const size = overrides?.targetSize ?? targetSize;
 
       const label =
         action === "random"
@@ -124,8 +124,10 @@ export default function HomePage() {
           sessionId,
           displayName: name,
         };
-        if (action === "random" || action === "create-private") {
-          body.targetSize = size;
+        if (action === "random") {
+          body.targetSize = randomTargetSize;
+        } else if (action === "create-private") {
+          body.targetSize = privateTargetSize;
         }
         if (action === "join-private") {
           body.roomCode = overrides?.roomCode ?? roomCode;
@@ -156,7 +158,7 @@ export default function HomePage() {
         });
       }
     },
-    [displayName, sessionId, targetSize, roomCode, router]
+    [displayName, sessionId, randomTargetSize, privateTargetSize, roomCode, router]
   );
 
   const isLoading = state.phase === "loading";
@@ -251,11 +253,11 @@ export default function HomePage() {
             {([2, 3, 4, 5] as TargetSize[]).map((n) => (
               <button
                 key={n}
-                onClick={() => setTargetSize(n)}
+                onClick={() => setRandomTargetSize(n)}
                 disabled={isLoading}
                 className={
                   "flex-1 rounded-lg border px-3 py-2 font-mono text-sm transition-colors " +
-                  (targetSize === n
+                  (randomTargetSize === n
                     ? "border-truth bg-truth/10 text-truth"
                     : "border-border text-muted hover:border-muted")
                 }
@@ -296,11 +298,11 @@ export default function HomePage() {
             {([2, 3, 4, 5] as TargetSize[]).map((n) => (
               <button
                 key={n}
-                onClick={() => setTargetSize(n)}
+                onClick={() => setPrivateTargetSize(n)}
                 disabled={isLoading}
                 className={
                   "flex-1 rounded-lg border px-3 py-2 font-mono text-sm transition-colors " +
-                  (targetSize === n
+                  (privateTargetSize === n
                     ? "border-truth bg-truth/10 text-truth"
                     : "border-border text-muted hover:border-muted")
                 }

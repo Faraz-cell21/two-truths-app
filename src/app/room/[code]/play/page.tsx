@@ -331,10 +331,21 @@ export default function PlayPage() {
           prev.phase === "awaiting_votes" ||
           prev.phase === "awaiting_statements"
         ) {
+          const room =
+            "room" in prev
+              ? {
+                  ...prev.room,
+                  players: prev.room.players.map((p) => {
+                    const updated = data.scores.find(
+                      (s) => s.sessionId === p.sessionId
+                    );
+                    return updated ? { ...p, score: updated.score } : p;
+                  }),
+                }
+              : ({} as Room);
           return {
             phase: "reveal",
-            room:
-              "room" in prev ? prev.room : ({} as Room), // won't happen in practice
+            room,
             round: data.round,
             sessionId:
               "sessionId" in prev ? prev.sessionId : "",
@@ -634,29 +645,59 @@ export default function PlayPage() {
       <div className="w-full max-w-lg space-y-6">
         {/* ---- Player status bar ---- */}
         {("room" in state) && (
-          <div className="flex items-center justify-between text-xs text-muted">
-            <span>
-              {state.room.players.map((p: Player) => (
-                <span
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {state.room.players.map((p: Player) => {
+              const isSelf = p.sessionId === state.sessionId;
+              return (
+                <div
                   key={p.sessionId}
                   className={
-                    "mr-3 inline-flex items-center gap-1 " +
-                    (p.sessionId === state.sessionId ? "text-truth" : "")
+                    "flex items-center gap-2.5 rounded-xl border px-3.5 py-2 text-sm transition-all " +
+                    (isSelf
+                      ? "border-truth/40 bg-truth/5 shadow-sm"
+                      : "border-border bg-card") +
+                    (!p.connected ? " opacity-50" : "")
                   }
                 >
+                  {/* Connection dot */}
                   <span
                     className={
-                      "inline-block h-1.5 w-1.5 rounded-full " +
-                      (p.connected ? "bg-truth" : "bg-lie")
+                      "inline-block h-2 w-2 shrink-0 rounded-full " +
+                      (p.connected ? "bg-truth shadow-[0_0_6px_var(--color-truth)]" : "bg-lie")
                     }
+                    title={p.connected ? "Online" : "Disconnected"}
                   />
-                  {p.displayName}
-                  {p.sessionId === state.sessionId ? " (you)" : ""}
-                  {" · "}
-                  {p.score}pt
-                </span>
-              ))}
-            </span>
+                  {/* Name */}
+                  <span
+                    className={
+                      "truncate max-w-[100px] font-medium " +
+                      (isSelf ? "text-truth" : "text-warm")
+                    }
+                  >
+                    {p.displayName}
+                    {isSelf && (
+                      <span className="ml-1 text-xs text-muted font-normal">
+                        you
+                      </span>
+                    )}
+                  </span>
+                  {/* Score */}
+                  <span
+                    className={
+                      "ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums " +
+                      (p.score > 0
+                        ? "bg-truth/15 text-truth"
+                        : "bg-card text-muted")
+                    }
+                  >
+                    {p.score}
+                    <span className="ml-0.5 text-[0.6rem] font-normal opacity-70">
+                      {p.score === 1 ? "pt" : "pts"}
+                    </span>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
 

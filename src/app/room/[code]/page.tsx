@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getOrCreateSessionId, setStoredRoomCode } from "@/lib/session";
+import { getOrCreateSessionId, setStoredRoomCode, clearStoredRoomCode } from "@/lib/session";
 import {
   getPusherClient,
   getRoomChannelName,
@@ -37,7 +37,40 @@ export default function LobbyPage() {
   const roomCode = (params?.code ?? "").toUpperCase();
 
   const [state, setState] = useState<LobbyState>({ phase: "loading" });
+  const [notification, setNotification] = useState<string | null>(null);
   const gameStartedRef = useRef(false);
+  const sessionIdRef = useRef<string>("");
+
+  /* ---- Leave lobby ---- */
+  const handleLeave = useCallback(async () => {
+    const sid = sessionIdRef.current || getOrCreateSessionId();
+    try {
+      await fetch(`/api/room/${encodeURIComponent(roomCode)}/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sid }),
+      });
+    } catch {
+      // Best-effort — navigate away regardless
+    }
+    clearStoredRoomCode();
+    router.push("/");
+  }, [roomCode, router]);
+
+  // Fire leave on tab close
+  useEffect(() => {
+    const sid = getOrCreateSessionId();
+    sessionIdRef.current = sid;
+
+    const handleBeforeUnload = () => {
+      navigator.sendBeacon(
+        `/api/room/${encodeURIComponent(roomCode)}/leave`,
+        JSON.stringify({ sessionId: sid })
+      );
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [roomCode]);
 
   /* ---- Initial room-state fetch ---- */
   useEffect(() => {
@@ -113,9 +146,15 @@ export default function LobbyPage() {
     };
 
     const handlePlayerLeft = (data: {
+      sessionId: string;
+      displayName?: string;
       players: Player[];
       playerCount: number;
     }) => {
+      if (data.displayName) {
+        setNotification(`${data.displayName} left the lobby`);
+        setTimeout(() => setNotification(null), 4000);
+      }
       setState((prev) => {
         if (prev.phase !== "active") return prev;
         return {
@@ -235,6 +274,13 @@ export default function LobbyPage() {
       </div>
 
       <div className="w-full max-w-lg space-y-8">
+        {/* ---- Notification banner ---- */}
+        {notification && (
+          <div className="animate-fade-in-up rounded-lg border border-lie/30 bg-lie/10 px-4 py-3 text-center text-sm text-warm">
+            {notification}
+          </div>
+        )}
+
         {/* ---- Headline ---- */}
         <header className="text-center space-y-3">
           <h1 className="font-serif text-3xl font-bold tracking-tight text-warm">
@@ -297,6 +343,16 @@ export default function LobbyPage() {
             </p>
           </div>
         )}
+
+        {/* ---- Leave button ---- */}
+        <div className="text-center">
+          <button
+            onClick={handleLeave}
+            className="rounded-lg border border-border px-5 py-2 text-sm text-muted transition-colors hover:border-lie hover:text-lie"
+          >
+            Leave lobby
+          </button>
+        </div>
       </div>
     </main>
   );

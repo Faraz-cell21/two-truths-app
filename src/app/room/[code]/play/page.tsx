@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getOrCreateSessionId, setStoredRoomCode } from "@/lib/session";
+import { getOrCreateSessionId, setStoredRoomCode, clearStoredRoomCode } from "@/lib/session";
 import {
   getPusherClient,
   getRoomChannelName,
@@ -71,11 +71,13 @@ type PlayState =
       room: Room;
       sessionId: string;
       isGameOver: boolean;
+      gameEndReason?: string;
     }
   | {
       phase: "finished";
       room: Room;
       sessionId: string;
+      gameEndReason?: string;
     };
 
 export default function PlayPage() {
@@ -84,7 +86,40 @@ export default function PlayPage() {
   const roomCode = (params?.code ?? "").toUpperCase();
 
   const [state, setState] = useState<PlayState>({ phase: "loading" });
+  const [notification, setNotification] = useState<string | null>(null);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionIdRef = useRef<string>("");
+
+  /* ---- Leave ---- */
+  const handleLeave = useCallback(async () => {
+    const sid = sessionIdRef.current || getOrCreateSessionId();
+    try {
+      await fetch(`/api/room/${encodeURIComponent(roomCode)}/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sid }),
+      });
+    } catch {
+      // Best-effort
+    }
+    clearStoredRoomCode();
+    router.push("/");
+  }, [roomCode, router]);
+
+  // Fire leave on tab close
+  useEffect(() => {
+    const sid = getOrCreateSessionId();
+    sessionIdRef.current = sid;
+
+    const handleBeforeUnload = () => {
+      navigator.sendBeacon(
+        `/api/room/${encodeURIComponent(roomCode)}/leave`,
+        JSON.stringify({ sessionId: sid })
+      );
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [roomCode]);
 
   /* ================================================================
      Helpers
@@ -411,11 +446,18 @@ export default function PlayPage() {
     /* ---- GAME_ENDED ---- */
     const handleGameEnded = (data: {
       scores: Array<{ sessionId: string; displayName: string; score: number }>;
+      reason?: string;
+      message?: string;
     }) => {
       // Clear reveal timer
       if (revealTimerRef.current) {
         clearTimeout(revealTimerRef.current);
         revealTimerRef.current = null;
+      }
+
+      if (data.message) {
+        setNotification(data.message);
+        setTimeout(() => setNotification(null), 6000);
       }
 
       setState((prev) => {
@@ -430,6 +472,7 @@ export default function PlayPage() {
             room: { ...prev.room, players: updatedPlayers, status: "finished" },
             sessionId: prev.sessionId,
             isGameOver: true,
+            gameEndReason: data.reason,
           } as PlayState;
         }
         return prev;
@@ -437,9 +480,31 @@ export default function PlayPage() {
     };
 
     /* ---- PLAYER_LEFT / PLAYER_JOINED (connection status updates) ---- */
-    const handleConnectionUpdate = (data: {
+    const handlePlayerLeft = (data: {
+      sessionId: string;
+      displayName?: string;
       players: Player[];
       playerCount: number;
+    }) => {
+      if (data.displayName) {
+        setNotification(`${data.displayName} left the game`);
+        setTimeout(() => setNotification(null), 4000);
+      }
+      setState((prev) => {
+        if ("room" in prev) {
+          return {
+            ...prev,
+            room: { ...prev.room, players: data.players },
+          } as PlayState;
+        }
+        return prev;
+      });
+    };
+
+    const handlePlayerJoined = (data: {
+      players: Player[];
+      playerCount: number;
+      targetSize: number;
     }) => {
       setState((prev) => {
         if ("room" in prev) {
@@ -457,8 +522,8 @@ export default function PlayPage() {
     channel.bind(PUSHER_EVENTS.ROUND_REVEALED, handleRoundRevealed);
     channel.bind(PUSHER_EVENTS.ROUND_ROTATED, handleRoundRotated);
     channel.bind(PUSHER_EVENTS.GAME_ENDED, handleGameEnded);
-    channel.bind(PUSHER_EVENTS.PLAYER_LEFT, handleConnectionUpdate);
-    channel.bind(PUSHER_EVENTS.PLAYER_JOINED, handleConnectionUpdate);
+    channel.bind(PUSHER_EVENTS.PLAYER_LEFT, handlePlayerLeft);
+    channel.bind(PUSHER_EVENTS.PLAYER_JOINED, handlePlayerJoined);
 
     return () => {
       channel.unbind(PUSHER_EVENTS.STATEMENTS_SUBMITTED, handleStatementsSubmitted);
@@ -466,8 +531,8 @@ export default function PlayPage() {
       channel.unbind(PUSHER_EVENTS.ROUND_REVEALED, handleRoundRevealed);
       channel.unbind(PUSHER_EVENTS.ROUND_ROTATED, handleRoundRotated);
       channel.unbind(PUSHER_EVENTS.GAME_ENDED, handleGameEnded);
-      channel.unbind(PUSHER_EVENTS.PLAYER_LEFT, handleConnectionUpdate);
-      channel.unbind(PUSHER_EVENTS.PLAYER_JOINED, handleConnectionUpdate);
+      channel.unbind(PUSHER_EVENTS.PLAYER_LEFT, handlePlayerLeft);
+      channel.unbind(PUSHER_EVENTS.PLAYER_JOINED, handlePlayerJoined);
       pusher.unsubscribe(channelName);
     };
   }, [state.phase, roomCode]);
@@ -557,8 +622,13 @@ export default function PlayPage() {
 
     if (state.phase !== "scoreboard") return;
 
-    if ((state as { isGameOver: boolean }).isGameOver) {
-      setState({ phase: "finished", room: state.room, sessionId: state.sessionId });
+    if (state.isGameOver) {
+      setState({
+        phase: "finished",
+        room: state.room,
+        sessionId: state.sessionId,
+        gameEndReason: state.gameEndReason,
+      });
     }
     // Otherwise wait for ROUND_ROTATED event
   }, [state]);
@@ -643,6 +713,13 @@ export default function PlayPage() {
       </div>
 
       <div className="w-full max-w-lg space-y-6">
+        {/* ---- Notification banner ---- */}
+        {notification && (
+          <div className="animate-fade-in-up rounded-lg border border-lie/30 bg-lie/10 px-4 py-3 text-center text-sm text-warm">
+            {notification}
+          </div>
+        )}
+
         {/* ---- Player status bar ---- */}
         {("room" in state) && (
           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -819,10 +896,11 @@ export default function PlayPage() {
               players={state.room.players}
               currentRound={state.room.currentRound}
               totalRounds={state.room.players.length}
-              isGameOver={(state as { isGameOver: boolean }).isGameOver}
+              isGameOver={state.isGameOver}
               currentPlayerSessionId={state.sessionId}
               onContinue={handleScoreboardContinue}
               onPlayAgain={handlePlayAgain}
+              gameEndReason={state.gameEndReason}
             />
           </div>
         )}
@@ -837,9 +915,20 @@ export default function PlayPage() {
               currentPlayerSessionId={state.sessionId}
               onContinue={() => {}}
               onPlayAgain={handlePlayAgain}
+              gameEndReason={state.gameEndReason}
             />
           </div>
         )}
+
+        {/* ---- Leave button ---- */}
+        <div className="text-center pt-2">
+          <button
+            onClick={handleLeave}
+            className="rounded-lg border border-border px-5 py-2 text-sm text-muted transition-colors hover:border-lie hover:text-lie"
+          >
+            Leave game
+          </button>
+        </div>
       </div>
     </main>
   );

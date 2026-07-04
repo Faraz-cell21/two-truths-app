@@ -17,6 +17,7 @@ interface ScoreboardProps {
   currentPlayerSessionId: string;
   onContinue: () => void;
   onPlayAgain: () => void;
+  gameEndReason?: string;
 }
 
 const AUTO_ADVANCE_SECONDS = 5;
@@ -29,6 +30,7 @@ export default function Scoreboard({
   currentPlayerSessionId,
   onContinue,
   onPlayAgain,
+  gameEndReason,
 }: ScoreboardProps) {
   const [countdown, setCountdown] = useState(AUTO_ADVANCE_SECONDS);
 
@@ -63,6 +65,11 @@ export default function Scoreboard({
 
         {isGameOver ? (
           <div className="space-y-2">
+            {gameEndReason === "not-enough-players" && (
+              <p className="text-sm text-lie font-medium">
+                Game ended — not enough players remaining.
+              </p>
+            )}
             <p className="text-muted">
               {isTie
                 ? "It's a tie! The detectives are evenly matched."

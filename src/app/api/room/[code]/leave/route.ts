@@ -14,6 +14,9 @@ import {
  * Marks a player as disconnected. Called on tab close / navigation away
  * via a beforeunload handler. Does NOT remove the player from the room
  * — they can rejoin within the grace period.
+ *
+ * If the game is in progress and only 1 connected player remains, the
+ * game is force-ended since 1-player games are not playable.
  */
 export async function POST(
   request: NextRequest,
@@ -36,6 +39,24 @@ export async function POST(
 
   await connectToDatabase();
 
+  // Fetch room to get the player's display name before marking disconnected
+  const room = await RoomModel.findOne({ roomCode }).lean();
+  if (!room) {
+    return NextResponse.json({ error: "Room not found." }, { status: 404 });
+  }
+
+  const player = room.players.find(
+    (p: { sessionId: string; displayName: string }) => p.sessionId === sessionId
+  );
+  if (!player) {
+    return NextResponse.json(
+      { error: "Player not in room." },
+      { status: 404 }
+    );
+  }
+
+  const displayName = player.displayName;
+
   // Atomically mark the player as disconnected
   const updated = await RoomModel.findOneAndUpdate(
     { roomCode, "players.sessionId": sessionId },
@@ -50,15 +71,44 @@ export async function POST(
     );
   }
 
-  // Notify the room
   const channel = getRoomChannelName(roomCode);
-  const room = serializeRoom(updated);
+  const serialized = serializeRoom(updated);
+  const connectedPlayers = serialized.players.filter((p) => p.connected);
 
+  // Notify the room about the player leaving
   await pusherServer.trigger(channel, PUSHER_EVENTS.PLAYER_LEFT, {
     sessionId,
-    players: room.players,
-    playerCount: room.players.filter((p) => p.connected).length,
+    displayName,
+    players: serialized.players,
+    playerCount: connectedPlayers.length,
   });
+
+  // If the game is in progress and only 0-1 connected players remain,
+  // force-end — you can't play alone.
+  if (
+    updated.status === "playing" &&
+    connectedPlayers.length < 2
+  ) {
+    await RoomModel.updateOne(
+      { roomCode },
+      { $set: { status: "finished" } }
+    );
+
+    const scores = serialized.players.map((p) => ({
+      sessionId: p.sessionId,
+      displayName: p.displayName,
+      score: p.score,
+    }));
+
+    // Determine winner (if any) among remaining connected players
+    const highestScore = Math.max(...connectedPlayers.map((p) => p.score), 0);
+
+    await pusherServer.trigger(channel, PUSHER_EVENTS.GAME_ENDED, {
+      scores,
+      reason: "not-enough-players",
+      message: `Not enough players — ${displayName} left and the game cannot continue.`,
+    });
+  }
 
   return NextResponse.json({ success: true });
 }

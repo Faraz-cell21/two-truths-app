@@ -106,33 +106,43 @@ export default function RevealPanel({
           Score changes
         </h3>
         <div className="space-y-2">
-          {scoreDeltas.map((d) => (
-            <div
-              key={d.sessionId}
-              className={
-                "flex items-center justify-between rounded-lg px-4 py-2 " +
-                (d.sessionId === currentPlayerSessionId
-                  ? "bg-truth/10 border border-truth/20"
-                  : "")
-              }
-            >
-              <span className="text-sm text-warm">
-                {d.displayName}
-                {d.sessionId === currentPlayerSessionId && (
-                  <span className="ml-1 text-xs text-truth">(you)</span>
-                )}
-              </span>
-              <span
+          {scoreDeltas.map((d) => {
+            const scored = d.delta > 0;
+            const isSelf = d.sessionId === currentPlayerSessionId;
+
+            return (
+              <div
+                key={d.sessionId}
                 className={
-                  "font-mono text-sm font-bold " +
-                  (d.delta > 0 ? "text-truth animate-score-pop" : "text-muted")
+                  "flex items-center justify-between rounded-lg px-4 py-2 " +
+                  (scored
+                    ? "bg-truth/10 border border-truth/20"
+                    : "bg-card border border-transparent")
                 }
-                key={`delta-${d.sessionId}-${d.delta}`}
               >
-                {d.delta > 0 ? `+${d.delta}` : "—"}
-              </span>
-            </div>
-          ))}
+                <span className="text-sm text-warm">
+                  {scored && (
+                    <span className="mr-1.5 text-xs" aria-hidden>
+                      &#127942;
+                    </span>
+                  )}
+                  {d.displayName}
+                  {isSelf && (
+                    <span className="ml-1 text-xs text-muted">(you)</span>
+                  )}
+                </span>
+                <span
+                  className={
+                    "font-mono text-sm font-bold " +
+                    (scored ? "text-truth animate-score-pop" : "text-muted")
+                  }
+                  key={`delta-${d.sessionId}-${d.delta}`}
+                >
+                  {scored ? `+${d.delta}` : "—"}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 

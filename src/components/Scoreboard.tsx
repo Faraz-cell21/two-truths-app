@@ -63,11 +63,6 @@ export default function Scoreboard({
 
         {isGameOver ? (
           <div className="space-y-2">
-            {!isTie && (
-              <span className="inline-block text-4xl" aria-hidden>
-                &#127942;
-              </span>
-            )}
             <p className="text-muted">
               {isTie
                 ? "It's a tie! The detectives are evenly matched."
@@ -119,6 +114,16 @@ export default function Scoreboard({
               {/* Name */}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-warm">
+                  {isGameOver && !isTie && isLeader && (
+                    <span className="mr-1.5" aria-hidden>
+                      &#127942;
+                    </span>
+                  )}
+                  {isGameOver && isTie && isLeader && (
+                    <span className="mr-1.5" aria-hidden>
+                      &#129309;
+                    </span>
+                  )}
                   {player.displayName}
                   {isSelf && (
                     <span className="ml-2 text-xs text-truth">(you)</span>

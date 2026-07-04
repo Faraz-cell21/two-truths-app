@@ -194,8 +194,8 @@ export default function HomePage() {
                 {rejoin.room.roomCode}
               </span>
               {rejoin.room.status === "waiting"
-                ? " — waiting in the lobby."
-                : " — round " + rejoin.room.currentRound + " is in progress."}
+                ? " (waiting in the lobby)"
+                : " (round " + rejoin.room.currentRound + " in progress)"}
             </p>
             <div className="flex gap-2">
               <button
@@ -274,7 +274,7 @@ export default function HomePage() {
           >
             {state.phase === "loading" && state.action === "Finding a game…"
               ? "Finding a game…"
-              : "Play — find a room"}
+              : "Find a room"}
           </button>
         </section>
 
@@ -362,12 +362,12 @@ export default function HomePage() {
           <div className="mt-4 space-y-3 text-sm text-muted leading-relaxed">
             <p>
               <span className="font-semibold text-warm">1. Join or create</span>{" "}
-              a room — choose your room size (2-5 players). Share the code with
+              a room and choose your size (2-5 players). Share the code with
               friends, or hop into a random match.
             </p>
             <p>
               <span className="font-semibold text-warm">2. Each round,</span>{" "}
-              one player writes three statements — two are true, one is a lie.
+              one player writes three statements: two truths and one lie.
               Mark the lie before submitting.
             </p>
             <p>

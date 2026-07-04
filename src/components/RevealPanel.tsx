@@ -138,7 +138,7 @@ export default function RevealPanel({
                   }
                   key={`delta-${d.sessionId}-${d.delta}`}
                 >
-                  {scored ? `+${d.delta}` : "—"}
+                  {scored ? `+${d.delta}` : "·"}
                 </span>
               </div>
             );

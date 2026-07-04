@@ -67,7 +67,7 @@ export default function Scoreboard({
           <div className="space-y-2">
             {gameEndReason === "not-enough-players" && (
               <p className="text-sm text-lie font-medium">
-                Game ended — not enough players remaining.
+                Game ended: not enough players remaining.
               </p>
             )}
             <p className="text-muted">

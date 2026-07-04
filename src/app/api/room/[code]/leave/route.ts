@@ -106,7 +106,7 @@ export async function POST(
     await pusherServer.trigger(channel, PUSHER_EVENTS.GAME_ENDED, {
       scores,
       reason: "not-enough-players",
-      message: `Not enough players — ${displayName} left and the game cannot continue.`,
+      message: `Not enough players: ${displayName} left and the game cannot continue.`,
     });
   }
 

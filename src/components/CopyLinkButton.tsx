@@ -28,7 +28,7 @@ export default function CopyLinkButton({
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({
-          title: "Two Truths and a Lie — Join my game",
+          title: "Two Truths and a Lie: Join my game",
           text: `Join my Two Truths and a Lie game! Room code: ${roomCode}`,
           url: roomUrl,
         });

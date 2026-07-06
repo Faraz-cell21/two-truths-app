@@ -40,7 +40,7 @@ export default function CopyLinkButton({
 
     // Fallback: clipboard copy
     try {
-      await navigator.clipboard.writeText(roomUrl);
+      await navigator.clipboard.writeText(roomCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {

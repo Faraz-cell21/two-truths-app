@@ -41,4 +41,5 @@ export const PUSHER_EVENTS = {
   ROUND_REVEALED: "round-revealed",
   ROUND_ROTATED: "round-rotated",
   GAME_ENDED: "game-ended",
+  PLAY_AGAIN_REQUESTED: "play-again-requested",
 } as const;

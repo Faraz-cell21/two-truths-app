@@ -213,6 +213,23 @@ export default function LobbyPage() {
     return () => clearTimeout(timer);
   }, [state.phase, roomCode, router]);
 
+  /* ---- Auto-start when lobby is full (e.g. after play-again reset) ---- */
+  const autoStartFiredRef = useRef(false);
+
+  useEffect(() => {
+    if (state.phase !== "active") return;
+    const players = state.room.players;
+    const targetSize = state.room.targetSize;
+    const connectedPlayers = players.filter((p) => p.connected);
+    if (connectedPlayers.length < targetSize) return;
+    if (autoStartFiredRef.current) return;
+    autoStartFiredRef.current = true;
+
+    fetch(`/api/room/${encodeURIComponent(roomCode)}/start`, {
+      method: "POST",
+    });
+  }, [state.phase, roomCode, state]);
+
   /* ===================================================================
      RENDER
      =================================================================== */
@@ -277,7 +294,7 @@ export default function LobbyPage() {
       <div className="w-full max-w-lg space-y-8">
         {/* ---- Notification banner ---- */}
         {notification && (
-          <div className="animate-fade-in-up rounded-lg border border-lie/30 bg-lie/10 px-4 py-3 text-center text-sm text-warm">
+          <div className="animate-fade-in-up rounded-lg border border-truth/30 bg-truth/5 px-4 py-3 text-center text-sm text-warm">
             {notification}
           </div>
         )}

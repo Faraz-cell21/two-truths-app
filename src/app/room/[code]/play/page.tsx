@@ -517,6 +517,13 @@ export default function PlayPage() {
       });
     };
 
+    /* ---- PLAY_AGAIN_REQUESTED ---- */
+    const handlePlayAgainRequested = (data: {
+      initiatedBy: string;
+    }) => {
+      setNotification(`${data.initiatedBy} wants to play again!`);
+    };
+
     channel.bind(PUSHER_EVENTS.STATEMENTS_SUBMITTED, handleStatementsSubmitted);
     channel.bind(PUSHER_EVENTS.VOTE_CAST, handleVoteCast);
     channel.bind(PUSHER_EVENTS.ROUND_REVEALED, handleRoundRevealed);
@@ -524,6 +531,7 @@ export default function PlayPage() {
     channel.bind(PUSHER_EVENTS.GAME_ENDED, handleGameEnded);
     channel.bind(PUSHER_EVENTS.PLAYER_LEFT, handlePlayerLeft);
     channel.bind(PUSHER_EVENTS.PLAYER_JOINED, handlePlayerJoined);
+    channel.bind(PUSHER_EVENTS.PLAY_AGAIN_REQUESTED, handlePlayAgainRequested);
 
     return () => {
       channel.unbind(PUSHER_EVENTS.STATEMENTS_SUBMITTED, handleStatementsSubmitted);
@@ -533,6 +541,7 @@ export default function PlayPage() {
       channel.unbind(PUSHER_EVENTS.GAME_ENDED, handleGameEnded);
       channel.unbind(PUSHER_EVENTS.PLAYER_LEFT, handlePlayerLeft);
       channel.unbind(PUSHER_EVENTS.PLAYER_JOINED, handlePlayerJoined);
+      channel.unbind(PUSHER_EVENTS.PLAY_AGAIN_REQUESTED, handlePlayAgainRequested);
       pusher.unsubscribe(channelName);
     };
   }, [state.phase, roomCode]);
@@ -633,9 +642,19 @@ export default function PlayPage() {
     // Otherwise wait for ROUND_ROTATED event
   }, [state]);
 
-  const handlePlayAgain = useCallback(() => {
-    router.push("/");
-  }, [router]);
+  const handlePlayAgain = useCallback(async () => {
+    const sid = sessionIdRef.current || getOrCreateSessionId();
+    try {
+      await fetch(`/api/room/${encodeURIComponent(roomCode)}/play-again`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sid }),
+      });
+    } catch {
+      // Best-effort — navigate to lobby regardless
+    }
+    router.push(`/room/${roomCode}`);
+  }, [roomCode, router]);
 
   /* ================================================================
      Cleanup on unmount
@@ -715,7 +734,7 @@ export default function PlayPage() {
       <div className="w-full max-w-lg space-y-6">
         {/* ---- Notification banner ---- */}
         {notification && (
-          <div className="animate-fade-in-up rounded-lg border border-lie/30 bg-lie/10 px-4 py-3 text-center text-sm text-warm">
+          <div className="animate-fade-in-up rounded-lg border border-truth/30 bg-truth/5 px-4 py-3 text-center text-sm text-warm">
             {notification}
           </div>
         )}

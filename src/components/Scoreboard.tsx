@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import confetti from "canvas-confetti";
 import type { Player } from "@/types/game";
 
 /* ===================================================================
@@ -53,6 +54,65 @@ export default function Scoreboard({
     }, 1000);
     return () => clearInterval(interval);
   }, [isGameOver, onContinue]);
+
+  // Confetti celebration when the current player wins
+  const confettiFiredRef = useRef(false);
+  const isCurrentPlayerWinner =
+    isGameOver && !isTie && topScore > 0 && ranked[0]?.sessionId === currentPlayerSessionId;
+
+  useEffect(() => {
+    if (!isCurrentPlayerWinner || confettiFiredRef.current) return;
+    confettiFiredRef.current = true;
+
+    const duration = 3000;
+    const end = Date.now() + duration;
+
+    // Fire confetti from both sides in bursts
+    const frame = () => {
+      const now = Date.now();
+      const remaining = end - now;
+
+      if (remaining <= 0) return;
+
+      // Confetti from left side
+      confetti({
+        particleCount: 3,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0, y: 0.6 },
+        colors: ["#22c55e", "#facc15", "#f59e0b", "#ef4444", "#3b82f6"],
+      });
+
+      // Confetti from right side
+      confetti({
+        particleCount: 3,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1, y: 0.6 },
+        colors: ["#22c55e", "#facc15", "#f59e0b", "#ef4444", "#3b82f6"],
+      });
+
+      requestAnimationFrame(frame);
+    };
+
+    // Fire a stronger initial burst from both sides
+    confetti({
+      particleCount: 50,
+      angle: 60,
+      spread: 70,
+      origin: { x: 0, y: 0.5 },
+      colors: ["#22c55e", "#facc15", "#f59e0b"],
+    });
+    confetti({
+      particleCount: 50,
+      angle: 120,
+      spread: 70,
+      origin: { x: 1, y: 0.5 },
+      colors: ["#22c55e", "#facc15", "#f59e0b"],
+    });
+
+    requestAnimationFrame(frame);
+  }, [isCurrentPlayerWinner]);
 
   return (
     <div className="space-y-6">

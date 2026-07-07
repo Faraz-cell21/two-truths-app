@@ -672,7 +672,7 @@ export default function PlayPage() {
   /* ---- Loading ---- */
   if (state.phase === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
+      <main className="flex min-h-dvh items-center justify-center px-4">
         <div className="w-full max-w-lg space-y-6 animate-fade-in">
           <div className="text-center space-y-3">
             <div className="skeleton mx-auto h-4 w-48" />
@@ -693,7 +693,7 @@ export default function PlayPage() {
   /* ---- Error ---- */
   if (state.phase === "error") {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
+      <main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-4 text-center">
         <h1 className="font-serif text-3xl font-bold text-warm">
           Something went wrong
         </h1>
@@ -726,7 +726,7 @@ export default function PlayPage() {
   );
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+    <main className="flex min-h-dvh flex-col items-center justify-start px-4 py-12">
       <div className="fixed top-4 right-4 z-50">
         <ThemeSwitcher />
       </div>

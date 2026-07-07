@@ -165,7 +165,7 @@ export default function HomePage() {
 
   /* ---- render ---- */
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+    <main className="flex min-h-dvh flex-col items-center justify-start px-4 py-12">
       {/* Theme toggle — top-right */}
       <div className="fixed top-4 right-4 z-50">
         <ThemeSwitcher />
@@ -230,7 +230,6 @@ export default function HomePage() {
             placeholder="Detective…"
             className="w-full rounded-lg border border-border bg-ink px-4 py-3 font-mono text-sm text-warm placeholder:text-muted/50 focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
             disabled={isLoading}
-            autoFocus
           />
           {state.phase === "error" && (
             <p className="text-sm text-lie" role="alert">

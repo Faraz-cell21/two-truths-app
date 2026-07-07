@@ -64,10 +64,27 @@
 /* =====================================================================
    Base
    ===================================================================== */
+html {
+  /* Use dynamic viewport height on mobile — avoids 100vh including the URL bar */
+  min-height: 100dvh;
+}
+
 body {
   background: var(--theme-ink);
   color: var(--theme-warm);
   transition: background 0.3s ease, color 0.3s ease;
+  /* Prevent iOS Safari from shifting touch targets on overflow pages */
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  touch-action: manipulation;
 }
 
 /* =====================================================================

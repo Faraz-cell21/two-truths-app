@@ -57,6 +57,8 @@ export interface VoteRequestBody {
 export interface VoteSuccessResponse {
   vote: Vote;
   votesRemaining: number;
+  isCorrect: boolean;
+  correctIndex: 0 | 1 | 2;
 }
 
 export type VoteResponse = VoteSuccessResponse | { error: string };

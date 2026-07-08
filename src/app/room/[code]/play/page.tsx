@@ -9,7 +9,7 @@ import {
   PUSHER_EVENTS,
 } from "@/lib/pusher/client";
 import StatementForm from "@/components/StatementForm";
-import VotePanel from "@/components/VotePanel";
+import VotePanel, { type VoteResult } from "@/components/VotePanel";
 import RevealPanel from "@/components/RevealPanel";
 import Scoreboard from "@/components/Scoreboard";
 import CopyLinkButton from "@/components/CopyLinkButton";
@@ -53,10 +53,24 @@ type PlayState =
   | {
       phase: "awaiting_votes";
       room: Room;
-      round: RoundPublicView;
+      round: RoundPublicView | Round;
       sessionId: string;
       votes: Vote[];
       playerCount: number;
+      votedIndex: 0 | 1 | 2 | null;
+      lieIndex: 0 | 1 | 2 | null;
+      voteResults: VoteResult[];
+      isSubmitter: boolean;
+      allVotesIn: boolean;
+      pendingReveal: {
+        round: Round;
+        scoreDeltas: ScoreDelta[];
+        scores: Array<{ sessionId: string; displayName: string; score: number }>;
+      } | null;
+      pendingRotation: {
+        nextRound: number;
+        nextSubmitter: { sessionId: string; displayName: string };
+      } | null;
     }
   | {
       phase: "reveal";
@@ -65,6 +79,10 @@ type PlayState =
       sessionId: string;
       scoreDeltas: ScoreDelta[];
       scores: Array<{ sessionId: string; displayName: string; score: number }>;
+      pendingRotation: {
+        nextRound: number;
+        nextSubmitter: { sessionId: string; displayName: string };
+      } | null;
     }
   | {
       phase: "scoreboard";
@@ -72,6 +90,10 @@ type PlayState =
       sessionId: string;
       isGameOver: boolean;
       gameEndReason?: string;
+      pendingRotation: {
+        nextRound: number;
+        nextSubmitter: { sessionId: string; displayName: string };
+      } | null;
     }
   | {
       phase: "finished";
@@ -130,6 +152,23 @@ export default function PlayPage() {
       const idx = (roundNumber - 1) % room.players.length;
       return room.players[idx]?.displayName ?? "Unknown";
     },
+    []
+  );
+
+  const buildVoteResult = useCallback(
+    (
+      room: Room,
+      sessionId: string,
+      votedIndex: 0 | 1 | 2,
+      isCorrect: boolean
+    ): VoteResult => ({
+      sessionId,
+      displayName:
+        room.players.find((p) => p.sessionId === sessionId)?.displayName ??
+        "Unknown",
+      votedIndex,
+      isCorrect,
+    }),
     []
   );
 
@@ -206,7 +245,7 @@ export default function PlayPage() {
         const round = roundJson.round as Round | RoundPublicView;
         const scoreDeltas = roundJson.scoreDeltas;
 
-        // Round is revealed → show reveal briefly then scoreboard
+        // Round is revealed → show reveal until user continues
         if (round.revealedAt || scoreDeltas) {
           setState({
             phase: "reveal",
@@ -219,19 +258,8 @@ export default function PlayPage() {
               displayName: p.displayName,
               score: p.score,
             })),
+            pendingRotation: null,
           });
-
-          // Auto-advance to scoreboard after 8s
-          revealTimerRef.current = setTimeout(() => {
-            const nextRound = room.currentRound;
-            const totalRounds = room.players.length;
-            setState({
-              phase: "scoreboard",
-              room,
-              sessionId,
-              isGameOver: nextRound > totalRounds,
-            });
-          }, 8000);
           return;
         }
 
@@ -241,15 +269,31 @@ export default function PlayPage() {
         const hasVoted = round.votes.some((v: Vote) => v.sessionId === sessionId);
 
         if (amISubmitter) {
+          const fullRound = round as Round;
           setState({
             phase: "awaiting_votes",
             room,
-            round: round as RoundPublicView,
+            round: fullRound,
             sessionId,
             votes: round.votes,
             playerCount: room.players.length,
+            votedIndex: null,
+            lieIndex: fullRound.lieIndex,
+            voteResults: round.votes.map((v: Vote) =>
+              buildVoteResult(
+                room,
+                v.sessionId,
+                v.votedIndex,
+                v.votedIndex === fullRound.lieIndex
+              )
+            ),
+            isSubmitter: true,
+            allVotesIn: false,
+            pendingReveal: null,
+            pendingRotation: null,
           });
         } else if (hasVoted) {
+          const myVote = round.votes.find((v: Vote) => v.sessionId === sessionId);
           setState({
             phase: "awaiting_votes",
             room,
@@ -257,6 +301,13 @@ export default function PlayPage() {
             sessionId,
             votes: round.votes,
             playerCount: room.players.length,
+            votedIndex: myVote?.votedIndex ?? null,
+            lieIndex: null,
+            voteResults: [],
+            isSubmitter: false,
+            allVotesIn: false,
+            pendingReveal: null,
+            pendingRotation: null,
           });
         } else {
           setState({
@@ -279,7 +330,7 @@ export default function PlayPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [roomCode, router, getSubmitterName]);
+  }, [roomCode, router, getSubmitterName, buildVoteResult]);
 
   /* ================================================================
      Pusher subscription
@@ -321,12 +372,23 @@ export default function PlayPage() {
     /* ---- VOTE_CAST ---- */
     const handleVoteCast = (data: {
       sessionId: string;
+      votedIndex: 0 | 1 | 2;
+      isCorrect: boolean;
+      correctIndex: 0 | 1 | 2;
       votes: Vote[];
       votesRemaining: number;
     }) => {
       setState((prev) => {
+        const newResult = buildVoteResult(
+          prev.phase === "vote" || prev.phase === "awaiting_votes"
+            ? prev.room
+            : ({} as Room),
+          data.sessionId,
+          data.votedIndex,
+          data.isCorrect
+        );
+
         if (prev.phase === "vote") {
-          // Check if this vote was mine
           if (data.sessionId === prev.sessionId) {
             return {
               phase: "awaiting_votes",
@@ -335,13 +397,31 @@ export default function PlayPage() {
               sessionId: prev.sessionId,
               votes: data.votes,
               playerCount: prev.room.players.length,
+              votedIndex: data.votedIndex,
+              lieIndex: data.correctIndex,
+              voteResults: [newResult],
+              isSubmitter: false,
+              allVotesIn: data.votesRemaining === 0,
+              pendingReveal: null,
+              pendingRotation: null,
             } as PlayState;
           }
+          // Another player voted — update vote count while we still pick
+          return {
+            ...prev,
+            round: { ...prev.round, votes: data.votes },
+          } as PlayState;
         }
         if (prev.phase === "awaiting_votes") {
+          const existing = prev.voteResults.filter(
+            (r) => r.sessionId !== data.sessionId
+          );
           return {
             ...prev,
             votes: data.votes,
+            lieIndex: data.correctIndex,
+            voteResults: [...existing, newResult],
+            allVotesIn: prev.allVotesIn || data.votesRemaining === 0,
           } as PlayState;
         }
         return prev;
@@ -354,16 +434,75 @@ export default function PlayPage() {
       scoreDeltas: ScoreDelta[];
       scores: Array<{ sessionId: string; displayName: string; score: number }>;
     }) => {
-      // Clear reveal timer if one is pending
       if (revealTimerRef.current) {
         clearTimeout(revealTimerRef.current);
         revealTimerRef.current = null;
       }
 
       setState((prev) => {
+        if (prev.phase === "awaiting_votes") {
+          const room = {
+            ...prev.room,
+            players: prev.room.players.map((p) => {
+              const updated = data.scores.find((s) => s.sessionId === p.sessionId);
+              return updated ? { ...p, score: updated.score } : p;
+            }),
+          };
+          return {
+            ...prev,
+            room,
+            allVotesIn: true,
+            pendingReveal: {
+              round: data.round,
+              scoreDeltas: data.scoreDeltas,
+              scores: data.scores,
+            },
+          } as PlayState;
+        }
+
+        if (prev.phase === "vote") {
+          const myVote = data.round.votes.find(
+            (v) => v.sessionId === prev.sessionId
+          );
+          if (myVote) {
+            const room = {
+              ...prev.room,
+              players: prev.room.players.map((p) => {
+                const updated = data.scores.find((s) => s.sessionId === p.sessionId);
+                return updated ? { ...p, score: updated.score } : p;
+              }),
+            };
+            return {
+              phase: "awaiting_votes",
+              room,
+              round: prev.round,
+              sessionId: prev.sessionId,
+              votes: data.round.votes,
+              playerCount: prev.room.players.length,
+              votedIndex: myVote.votedIndex,
+              lieIndex: data.round.lieIndex,
+              voteResults: data.round.votes.map((v) =>
+                buildVoteResult(
+                  room,
+                  v.sessionId,
+                  v.votedIndex,
+                  v.votedIndex === data.round.lieIndex
+                )
+              ),
+              isSubmitter: false,
+              allVotesIn: true,
+              pendingReveal: {
+                round: data.round,
+                scoreDeltas: data.scoreDeltas,
+                scores: data.scores,
+              },
+              pendingRotation: null,
+            } as PlayState;
+          }
+        }
+
         if (
           prev.phase === "vote" ||
-          prev.phase === "awaiting_votes" ||
           prev.phase === "awaiting_statements"
         ) {
           const room =
@@ -386,24 +525,11 @@ export default function PlayPage() {
               "sessionId" in prev ? prev.sessionId : "",
             scoreDeltas: data.scoreDeltas,
             scores: data.scores,
+            pendingRotation: null,
           } as PlayState;
         }
         return prev;
       });
-
-      // Auto-advance to scoreboard after 8s
-      revealTimerRef.current = setTimeout(() => {
-        setState((prev) => {
-          if (prev.phase !== "reveal") return prev;
-          const totalRounds = prev.room.players.length;
-          return {
-            phase: "scoreboard",
-            room: prev.room,
-            sessionId: prev.sessionId,
-            isGameOver: prev.round.roundNumber >= totalRounds,
-          } as PlayState;
-        });
-      }, 8000);
     };
 
     /* ---- ROUND_ROTATED ---- */
@@ -411,14 +537,19 @@ export default function PlayPage() {
       nextRound: number;
       nextSubmitter: { sessionId: string; displayName: string };
     }) => {
-      // Clear reveal timer
       if (revealTimerRef.current) {
         clearTimeout(revealTimerRef.current);
         revealTimerRef.current = null;
       }
 
       setState((prev) => {
-        if (prev.phase === "reveal" || prev.phase === "scoreboard") {
+        if (prev.phase === "awaiting_votes") {
+          return { ...prev, pendingRotation: data } as PlayState;
+        }
+        if (prev.phase === "reveal") {
+          return { ...prev, pendingRotation: data } as PlayState;
+        }
+        if (prev.phase === "scoreboard") {
           const room = prev.room;
           const amISubmitter =
             data.nextSubmitter.sessionId === prev.sessionId;
@@ -461,21 +592,28 @@ export default function PlayPage() {
       }
 
       setState((prev) => {
-        if ("room" in prev) {
-          // Update player scores from the final data
-          const updatedPlayers = prev.room.players.map((p) => {
-            const final = data.scores.find((s) => s.sessionId === p.sessionId);
-            return final ? { ...p, score: final.score } : p;
-          });
+        if (!("room" in prev)) return prev;
+
+        const updatedPlayers = prev.room.players.map((p) => {
+          const final = data.scores.find((s) => s.sessionId === p.sessionId);
+          return final ? { ...p, score: final.score } : p;
+        });
+
+        if (prev.phase === "awaiting_votes" || prev.phase === "reveal") {
           return {
-            phase: "scoreboard",
+            ...prev,
             room: { ...prev.room, players: updatedPlayers, status: "finished" },
-            sessionId: prev.sessionId,
-            isGameOver: true,
-            gameEndReason: data.reason,
           } as PlayState;
         }
-        return prev;
+
+        return {
+          phase: "scoreboard",
+          room: { ...prev.room, players: updatedPlayers, status: "finished" },
+          sessionId: prev.sessionId,
+          isGameOver: true,
+          gameEndReason: data.reason,
+          pendingRotation: null,
+        } as PlayState;
       });
     };
 
@@ -544,7 +682,7 @@ export default function PlayPage() {
       channel.unbind(PUSHER_EVENTS.PLAY_AGAIN_REQUESTED, handlePlayAgainRequested);
       pusher.unsubscribe(channelName);
     };
-  }, [state.phase, roomCode]);
+  }, [state.phase, roomCode, buildVoteResult]);
 
   /* ================================================================
      Action handlers
@@ -580,6 +718,13 @@ export default function PlayPage() {
           sessionId: prev.sessionId,
           votes: [],
           playerCount: prev.room.players.length,
+          votedIndex: null,
+          lieIndex,
+          voteResults: [],
+          isSubmitter: true,
+          allVotesIn: false,
+          pendingReveal: null,
+          pendingRotation: null,
         };
       });
     },
@@ -607,23 +752,66 @@ export default function PlayPage() {
         throw new Error("error" in json ? json.error : "Vote failed");
       }
 
+      const result = buildVoteResult(
+        state.room,
+        state.sessionId,
+        votedIndex,
+        json.isCorrect
+      );
+
       setState((prev) => {
+        if (prev.phase === "awaiting_votes") return prev;
         if (prev.phase !== "vote") return prev;
         return {
           phase: "awaiting_votes",
           room: prev.room,
           round: prev.round,
           sessionId: prev.sessionId,
-          votes: [],
+          votes: json.vote ? [json.vote] : [],
           playerCount: prev.room.players.length,
+          votedIndex,
+          lieIndex: json.correctIndex,
+          voteResults: [result],
+          isSubmitter: false,
+          allVotesIn: json.votesRemaining === 0,
+          pendingReveal: null,
+          pendingRotation: null,
         };
       });
     },
-    [state, roomCode]
+    [state, roomCode, buildVoteResult]
   );
 
+  const handleContinueFromResults = useCallback(() => {
+    if (state.phase !== "awaiting_votes" || !state.pendingReveal) return;
+
+    setState({
+      phase: "reveal",
+      room: state.room,
+      round: state.pendingReveal.round,
+      sessionId: state.sessionId,
+      scoreDeltas: state.pendingReveal.scoreDeltas,
+      scores: state.pendingReveal.scores,
+      pendingRotation: state.pendingRotation,
+    });
+  }, [state]);
+
+  const handleRevealContinue = useCallback(() => {
+    if (state.phase !== "reveal") return;
+
+    const totalRounds = state.room.players.length;
+    setState({
+      phase: "scoreboard",
+      room: state.room,
+      sessionId: state.sessionId,
+      isGameOver:
+        state.room.status === "finished" ||
+        state.round.roundNumber >= totalRounds,
+      pendingRotation: state.pendingRotation,
+    });
+  }, [state]);
+
   const handleScoreboardContinue = useCallback(() => {
-    // Clear pending timers
     if (revealTimerRef.current) {
       clearTimeout(revealTimerRef.current);
       revealTimerRef.current = null;
@@ -638,8 +826,29 @@ export default function PlayPage() {
         sessionId: state.sessionId,
         gameEndReason: state.gameEndReason,
       });
+      return;
     }
-    // Otherwise wait for ROUND_ROTATED event
+
+    if (state.pendingRotation) {
+      const { nextRound, nextSubmitter } = state.pendingRotation;
+      const amISubmitter = nextSubmitter.sessionId === state.sessionId;
+      const updatedRoom = { ...state.room, currentRound: nextRound };
+
+      if (amISubmitter) {
+        setState({
+          phase: "submit",
+          room: updatedRoom,
+          sessionId: state.sessionId,
+        });
+      } else {
+        setState({
+          phase: "awaiting_statements",
+          room: updatedRoom,
+          sessionId: state.sessionId,
+          submitterName: nextSubmitter.displayName,
+        });
+      }
+    }
   }, [state]);
 
   const handlePlayAgain = useCallback(async () => {
@@ -850,41 +1059,20 @@ export default function PlayPage() {
         {state.phase === "awaiting_votes" && (
           <div className="animate-fade-in-up space-y-6" key="awaiting_votes">
             {renderHeader(state.room)}
-            <div className="interrogation-card text-center space-y-4">
-              <h2 className="font-serif text-lg font-semibold text-warm">
-                Votes are in progress
-              </h2>
-              <hr className="polygraph-line" />
-              <p className="text-muted">
-                {state.votes.length} of {state.playerCount - 1} votes cast.
-                Waiting for the rest…
-              </p>
-              <div className="flex justify-center gap-1 py-2">
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="inline-block h-2 w-2 animate-pulse rounded-full bg-truth"
-                    style={{ animationDelay: `${i * 200}ms` }}
-                  />
-                ))}
-              </div>
-              {/* Show statements submitted */}
-              <div className="space-y-2 pt-2 text-left">
-                {(state.round as RoundPublicView).statements.map(
-                  (stmt: string, i: number) => (
-                    <div
-                      key={i}
-                      className="rounded-lg border border-border bg-ink/50 px-4 py-2 font-mono text-sm text-muted"
-                    >
-                      <span className="mr-2 text-xs text-muted/60">
-                        {i + 1}.
-                      </span>
-                      {stmt}
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
+            <VotePanel
+              statements={state.round.statements}
+              submittedBy={getSubmitterName(state.room, state.round.roundNumber)}
+              votes={state.votes}
+              playerCount={state.playerCount}
+              onVote={async () => {}}
+              hasVoted={!state.isSubmitter && state.votedIndex !== null}
+              votedIndex={state.votedIndex}
+              lieIndex={state.lieIndex}
+              voteResults={state.voteResults}
+              isSubmitter={state.isSubmitter}
+              showContinue={state.allVotesIn && state.pendingReveal !== null}
+              onContinue={handleContinueFromResults}
+            />
           </div>
         )}
 
@@ -903,9 +1091,14 @@ export default function PlayPage() {
                 displayName: p.displayName,
               }))}
             />
-            <p className="text-center text-xs text-muted/60">
-              Auto-advancing in a few seconds…
-            </p>
+            <div className="text-center">
+              <button
+                onClick={handleRevealContinue}
+                className="rounded-lg bg-truth px-8 py-3 font-semibold text-ink transition-opacity hover:opacity-90"
+              >
+                Continue
+              </button>
+            </div>
           </div>
         )}
 

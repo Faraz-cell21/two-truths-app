@@ -101,6 +101,8 @@ export async function POST(
   }
 
   const vote: Vote = { sessionId, votedIndex };
+  const isCorrect = votedIndex === round.lieIndex;
+  const correctIndex = round.lieIndex as 0 | 1 | 2;
   // Only count connected non-submitter players — disconnected players
   // don't block the auto-reveal from firing.
   const eligibleVoters = room.players.filter(
@@ -113,6 +115,9 @@ export async function POST(
   const channel = getRoomChannelName(roomCode);
   await pusherServer.trigger(channel, PUSHER_EVENTS.VOTE_CAST, {
     sessionId,
+    votedIndex,
+    isCorrect,
+    correctIndex,
     votes: updated.votes,
     votesRemaining,
   });
@@ -130,8 +135,10 @@ export async function POST(
     return NextResponse.json({
       vote,
       votesRemaining: 0,
+      isCorrect,
+      correctIndex,
     } as VoteResponse);
   }
 
-  return NextResponse.json({ vote, votesRemaining });
+  return NextResponse.json({ vote, votesRemaining, isCorrect, correctIndex });
 }

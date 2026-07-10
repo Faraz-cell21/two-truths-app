@@ -69,7 +69,7 @@ export default function AdminLoginPage() {
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-lg border border-border bg-ink px-4 py-3 text-warm outline-none focus:border-truth"
+              className="w-full rounded-lg border border-border bg-field px-4 py-3 text-warm outline-none focus:border-truth"
               required
             />
           </div>
@@ -84,7 +84,7 @@ export default function AdminLoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg border border-border bg-ink px-4 py-3 text-warm outline-none focus:border-truth"
+              className="w-full rounded-lg border border-border bg-field px-4 py-3 text-warm outline-none focus:border-truth"
               required
             />
           </div>

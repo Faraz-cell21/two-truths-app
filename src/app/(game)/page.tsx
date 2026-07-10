@@ -11,6 +11,7 @@ import {
   clearStoredRoomCode,
 } from "@/lib/session";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import { useGameScenePhase } from "@/components/three/useGameScenePhase";
 import type { JoinResponse, JoinAction } from "@/types/api";
 import type { Room, TargetSize } from "@/types/game";
 
@@ -162,6 +163,7 @@ export default function HomePage() {
   );
 
   const isLoading = state.phase === "loading";
+  useGameScenePhase(isLoading ? "loading" : "home");
 
   /* ---- render ---- */
   return (
@@ -177,10 +179,10 @@ export default function HomePage() {
           <h1 className="font-serif text-4xl font-bold tracking-tight text-warm">
             Two Truths
             <br />
-            <span className="text-muted">&amp; a Lie</span>
+            <span className="text-lie/90">&amp; a Lie</span>
           </h1>
           <hr className="polygraph-line" />
-          <p className="text-sm text-muted">
+          <p className="text-sm text-muted/95">
             One player lies. Everyone else detects.
           </p>
         </header>
@@ -228,7 +230,7 @@ export default function HomePage() {
               if (state.phase === "error") setState({ phase: "idle" });
             }}
             placeholder="Detective…"
-            className="w-full rounded-lg border border-border bg-ink px-4 py-3 font-mono text-sm text-warm placeholder:text-muted/50 focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
+            className="w-full rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm text-warm placeholder:text-muted/50 focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
             disabled={isLoading}
           />
           {state.phase === "error" && (
@@ -336,7 +338,7 @@ export default function HomePage() {
                 }}
                 placeholder="BLUE-FOX-42"
                 maxLength={14}
-                className="flex-1 rounded-lg border border-border bg-ink px-4 py-3 font-mono text-sm uppercase text-warm placeholder:text-muted/50 focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
+                className="flex-1 rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm uppercase text-warm placeholder:text-muted/50 focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
                 disabled={isLoading}
               />
               <button

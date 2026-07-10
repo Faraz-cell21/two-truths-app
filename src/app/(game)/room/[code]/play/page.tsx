@@ -14,6 +14,7 @@ import RevealPanel from "@/components/RevealPanel";
 import Scoreboard from "@/components/Scoreboard";
 import CopyLinkButton from "@/components/CopyLinkButton";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import { useGameScenePhase } from "@/components/three/useGameScenePhase";
 import type { Room, Round, RoundPublicView, Player, Vote, ScoreDelta } from "@/types/game";
 import type { SubmitResponse, RoundGetSuccessResponse } from "@/types/api";
 
@@ -111,6 +112,8 @@ export default function PlayPage() {
   const [notification, setNotification] = useState<string | null>(null);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string>("");
+
+  useGameScenePhase(state.phase);
 
   /* ---- Leave ---- */
   const handleLeave = useCallback(async () => {

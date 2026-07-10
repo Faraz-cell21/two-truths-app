@@ -10,6 +10,8 @@
     "seed:admin": "node --env-file=.env scripts/seed-admin.mjs"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "canvas-confetti": "^1.9.4",
     "mongoose": "^9.7.3",
     "next": "16.2.10",
@@ -17,6 +19,7 @@
     "pusher-js": "^8.5.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "three": "^0.185.1",
     "uuid": "^14.0.1"
   },
   "devDependencies": {

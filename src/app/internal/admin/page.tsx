@@ -424,7 +424,7 @@ export default function AdminDashboardPage() {
               onChange={(event) =>
                 setActivityRetentionDays(Number(event.target.value) || 7)
               }
-              className="w-24 rounded-lg border border-border bg-ink px-3 py-2 text-sm text-warm"
+              className="w-24 rounded-lg border border-border bg-field px-3 py-2 text-sm text-warm"
             />
           </div>
 

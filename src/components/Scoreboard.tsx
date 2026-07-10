@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import confetti from "canvas-confetti";
 import type { Player } from "@/types/game";
+import { useTheme } from "@/components/ThemeProvider";
 
 /* ===================================================================
    Scoreboard — ranked player standings shown between rounds and at
@@ -23,6 +24,16 @@ interface ScoreboardProps {
 
 const AUTO_ADVANCE_SECONDS = 5;
 
+/** Brand confetti — steel blue / wine / ivory (no teal, no orange). */
+const CONFETTI_COLORS = {
+  dark: ["#8ba3d9", "#d46b8c", "#f2f1ef", "#c8cdd8", "#e8a0b8"],
+  light: ["#3d4f7a", "#a33d5c", "#1a1b20", "#6a7080", "#8b5a6b"],
+} as const;
+
+function getConfettiColors(theme: "dark" | "light") {
+  return [...CONFETTI_COLORS[theme]];
+}
+
 export default function Scoreboard({
   players,
   currentRound,
@@ -33,6 +44,7 @@ export default function Scoreboard({
   onPlayAgain,
   gameEndReason,
 }: ScoreboardProps) {
+  const { theme } = useTheme();
   const [countdown, setCountdown] = useState(AUTO_ADVANCE_SECONDS);
 
   const ranked = [...players].sort((a, b) => b.score - a.score);
@@ -62,6 +74,7 @@ export default function Scoreboard({
     if (!isCurrentPlayerWinner || confettiFiredRef.current) return;
     confettiFiredRef.current = true;
 
+    const colors = getConfettiColors(theme);
     const duration = 3000;
     const end = Date.now() + duration;
 
@@ -78,7 +91,7 @@ export default function Scoreboard({
         angle: 60,
         spread: 55,
         origin: { x: 0, y: 0.6 },
-        colors: ["#22c55e", "#facc15", "#f59e0b", "#ef4444", "#3b82f6"],
+        colors,
       });
 
       // Confetti from right side
@@ -87,7 +100,7 @@ export default function Scoreboard({
         angle: 120,
         spread: 55,
         origin: { x: 1, y: 0.6 },
-        colors: ["#22c55e", "#facc15", "#f59e0b", "#ef4444", "#3b82f6"],
+        colors,
       });
 
       requestAnimationFrame(frame);
@@ -99,18 +112,18 @@ export default function Scoreboard({
       angle: 60,
       spread: 70,
       origin: { x: 0, y: 0.5 },
-      colors: ["#22c55e", "#facc15", "#f59e0b"],
+      colors,
     });
     confetti({
       particleCount: 50,
       angle: 120,
       spread: 70,
       origin: { x: 1, y: 0.5 },
-      colors: ["#22c55e", "#facc15", "#f59e0b"],
+      colors,
     });
 
     requestAnimationFrame(frame);
-  }, [isCurrentPlayerWinner]);
+  }, [isCurrentPlayerWinner, theme]);
 
   return (
     <div className="space-y-6">

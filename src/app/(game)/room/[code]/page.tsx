@@ -11,6 +11,7 @@ import {
 import PlayerSlot from "@/components/PlayerSlot";
 import CopyLinkButton from "@/components/CopyLinkButton";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import { useGameScenePhase } from "@/components/three/useGameScenePhase";
 import type { Room, Player } from "@/types/game";
 
 /* ===================================================================
@@ -229,6 +230,14 @@ export default function LobbyPage() {
       method: "POST",
     });
   }, [state.phase, roomCode, state]);
+
+  const lobbyScenePhase =
+    state.phase === "loading"
+      ? "loading"
+      : state.phase === "error"
+        ? "error"
+        : "lobby";
+  useGameScenePhase(lobbyScenePhase);
 
   /* ===================================================================
      RENDER

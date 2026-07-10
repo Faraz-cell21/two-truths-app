@@ -113,7 +113,7 @@ export default function StatementForm({ onSubmit, loading }: StatementFormProps)
               rows={3}
               maxLength={MAX_LEN}
               disabled={loading}
-              className="w-full resize-none rounded-lg border border-border bg-ink px-4 py-3 font-mono text-sm text-warm placeholder:text-muted/50 focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
+              className="w-full resize-none rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm text-warm placeholder:text-muted/50 focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
             />
 
             <label

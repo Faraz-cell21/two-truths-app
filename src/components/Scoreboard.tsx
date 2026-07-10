@@ -43,17 +43,15 @@ export default function Scoreboard({
   useEffect(() => {
     if (isGameOver) return;
     const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          onContinue();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
     return () => clearInterval(interval);
-  }, [isGameOver, onContinue]);
+  }, [isGameOver]);
+
+  useEffect(() => {
+    if (isGameOver || countdown > 0) return;
+    onContinue();
+  }, [countdown, isGameOver, onContinue]);
 
   // Confetti celebration when the current player wins
   const confettiFiredRef = useRef(false);

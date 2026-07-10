@@ -24,10 +24,10 @@ interface ScoreboardProps {
 
 const AUTO_ADVANCE_SECONDS = 5;
 
-/** Brand confetti — steel blue / wine / ivory (no teal, no orange). */
+/** Brand confetti — vivid cobalt / hot magenta. */
 const CONFETTI_COLORS = {
-  dark: ["#8ba3d9", "#d46b8c", "#f2f1ef", "#c8cdd8", "#e8a0b8"],
-  light: ["#3d4f7a", "#a33d5c", "#1a1b20", "#6a7080", "#8b5a6b"],
+  dark: ["#4da3ff", "#ff4f9a", "#ffffff", "#9ec5ff", "#ff8fbf"],
+  light: ["#0057e7", "#d6006e", "#000000", "#2f6fed", "#ff4f9a"],
 } as const;
 
 function getConfettiColors(theme: "dark" | "light") {

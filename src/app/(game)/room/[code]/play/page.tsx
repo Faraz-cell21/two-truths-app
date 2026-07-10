@@ -1139,7 +1139,7 @@ export default function PlayPage() {
         <div className="text-center pt-2">
           <button
             onClick={handleLeave}
-            className="rounded-lg border border-border px-5 py-2 text-sm text-muted transition-colors hover:border-lie hover:text-lie"
+            className="rounded-lg bg-[#e11d48] px-5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
           >
             Leave game
           </button>

@@ -2,35 +2,35 @@
 
 /* =====================================================================
    Two Truths and a Lie — Design System
-   "Charcoal Dossier": graphite surfaces, steel-blue truth, wine lie.
-   No teal. No orange. UI + Three.js share one hue family.
+   "Signal Game": vivid cobalt + hot magenta on rich navy surfaces.
+   High-contrast body text (white / black) with punchy interactive accents.
    ===================================================================== */
 
 /* ---- Dark theme (default) ---- */
 :root,
 [data-theme="dark"] {
-  --theme-ink: #0c0d10;
-  --theme-card: #17181d;
-  --theme-field: #121318;
-  --theme-border: #2c2e36;
-  --theme-truth: #8ba3d9;
-  --theme-lie: #d46b8c;
+  --theme-ink: #070b16;
+  --theme-card: #141c2e;
+  --theme-field: #0d1424;
+  --theme-border: #3d4f73;
+  --theme-truth: #4da3ff;
+  --theme-lie: #ff4f9a;
   --theme-warm: #ffffff;
-  --theme-muted: #e8e8ec;
-  --theme-glow: rgba(139, 163, 217, 0.32);
+  --theme-muted: #dce3f5;
+  --theme-glow: rgba(77, 163, 255, 0.45);
 }
 
 /* ---- Light theme ---- */
 [data-theme="light"] {
-  --theme-ink: #eef0f4;
+  --theme-ink: #e8f0ff;
   --theme-card: #ffffff;
-  --theme-field: #e6e8ee;
-  --theme-border: #b8bec9;
-  --theme-truth: #2f4570;
-  --theme-lie: #9a2f52;
+  --theme-field: #dbe7ff;
+  --theme-border: #7a93c4;
+  --theme-truth: #0057e7;
+  --theme-lie: #d6006e;
   --theme-warm: #000000;
-  --theme-muted: #1a1a1a;
-  --theme-glow: rgba(47, 69, 112, 0.28);
+  --theme-muted: #1c1c1c;
+  --theme-glow: rgba(0, 87, 231, 0.35);
 }
 
 /* =====================================================================
@@ -109,23 +109,24 @@ textarea,
 }
 
 .interrogation-card {
-  background: color-mix(in srgb, var(--theme-card) 90%, transparent);
-  border: 1px solid color-mix(in srgb, var(--theme-border) 90%, transparent);
+  background: color-mix(in srgb, var(--theme-card) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-truth) 28%, var(--theme-border));
   border-radius: 0.85rem;
   padding: 1.5rem;
-  backdrop-filter: blur(18px) saturate(1.1);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
   box-shadow:
-    0 1px 0 color-mix(in srgb, var(--theme-warm) 5%, transparent),
-    0 12px 36px color-mix(in srgb, #000 22%, transparent);
+    0 1px 0 color-mix(in srgb, var(--theme-truth) 18%, transparent),
+    0 14px 40px color-mix(in srgb, #000 28%, transparent);
   transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 [data-theme="light"] .interrogation-card {
-  background: color-mix(in srgb, var(--theme-card) 96%, transparent);
+  background: color-mix(in srgb, var(--theme-card) 97%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-truth) 22%, var(--theme-border));
   box-shadow:
     0 1px 0 #fff,
-    0 12px 32px color-mix(in srgb, #3d4f7a 8%, transparent);
+    0 14px 36px color-mix(in srgb, var(--theme-truth) 14%, transparent);
 }
 
 @keyframes fade-in-up {
@@ -272,13 +273,13 @@ textarea,
     radial-gradient(
       ellipse 70% 55% at 50% 42%,
       transparent 0%,
-      color-mix(in srgb, var(--theme-ink) 20%, transparent) 65%,
-      color-mix(in srgb, #9aa3b5 45%, transparent) 100%
+      color-mix(in srgb, var(--theme-ink) 18%, transparent) 65%,
+      color-mix(in srgb, var(--theme-truth) 22%, transparent) 100%
     ),
     linear-gradient(
       to bottom,
-      color-mix(in srgb, var(--theme-ink) 45%, transparent),
+      color-mix(in srgb, var(--theme-ink) 40%, transparent),
       transparent 45%,
-      color-mix(in srgb, #8b7355 18%, transparent)
+      color-mix(in srgb, var(--theme-lie) 10%, transparent)
     );
 }

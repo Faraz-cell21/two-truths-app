@@ -334,8 +334,8 @@ function CardTable({
     ];
   }, [showFocus]);
 
-  const face = isLight ? "#f4f1ea" : "#23262f";
-  const edge = isLight ? "#3d4f7a" : "#9b9eaa";
+  const face = isLight ? "#f7faff" : "#1a2440";
+  const edge = isLight ? "#0057e7" : "#9ec5ff";
 
   return (
     <group>
@@ -399,12 +399,12 @@ function SceneContent() {
       <directionalLight
         position={[3, 6, 4]}
         intensity={isLight ? 0.55 : 0.35}
-        color={isLight ? "#fff8f0" : "#c8d0e0"}
+        color={isLight ? "#f0f6ff" : "#a8c4ff"}
       />
 
       <Room
-        wall={isLight ? "#d5dae4" : "#12141a"}
-        floor={isLight ? "#c5cad4" : "#0a0b0e"}
+        wall={isLight ? "#c9dbff" : "#0c1428"}
+        floor={isLight ? "#b7caf0" : "#060a14"}
         isLight={isLight}
       />
       <WindowBlinds color={palette.truth} intensity={energy} />

@@ -11,10 +11,10 @@ export interface ThemeColors {
 }
 
 const FALLBACK_COLORS: ThemeColors = {
-  truth: "#8ba3d9",
-  lie: "#d46b8c",
-  muted: "#e8e8ec",
-  ink: "#0c0d10",
+  truth: "#4da3ff",
+  lie: "#ff4f9a",
+  muted: "#dce3f5",
+  ink: "#070b16",
   warm: "#ffffff",
 };
 

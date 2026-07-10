@@ -8,6 +8,7 @@ import {
   getRoomChannelName,
   PUSHER_EVENTS,
 } from "@/lib/pusher/server";
+import { trackActivity } from "@/lib/admin/trackActivity";
 
 /**
  * POST /api/room/:code/play-again
@@ -131,6 +132,14 @@ export async function POST(
   await pusherServer.trigger(channel, PUSHER_EVENTS.PLAY_AGAIN_REQUESTED, {
     initiatedBy: initiatorName,
     room: serialized,
+  });
+
+  trackActivity({
+    type: "play_again",
+    request,
+    route: "/api/room/[code]/play-again",
+    roomCode,
+    sessionId,
   });
 
   return NextResponse.json({ room: serialized });

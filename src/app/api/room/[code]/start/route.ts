@@ -7,6 +7,7 @@ import {
   getRoomChannelName,
   PUSHER_EVENTS,
 } from "@/lib/pusher/server";
+import { trackActivity } from "@/lib/admin/trackActivity";
 
 /**
  * POST /api/room/:code/start
@@ -63,6 +64,14 @@ export async function POST(
   const channel = getRoomChannelName(roomCode);
   await pusherServer.trigger(channel, PUSHER_EVENTS.GAME_STARTED, {
     roundNumber: 1,
+  });
+
+  trackActivity({
+    type: "start_game",
+    request,
+    route: "/api/room/[code]/start",
+    roomCode,
+    metadata: { source: "manual_start" },
   });
 
   const serialized = serializeRoom(updated);

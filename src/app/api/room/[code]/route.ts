@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { RoomModel } from "@/models/Room";
 import { serializeRoom } from "@/lib/serializeRoom";
+import { trackActivity } from "@/lib/admin/trackActivity";
 
 /**
  * GET /api/room/:code
@@ -11,7 +12,7 @@ import { serializeRoom } from "@/lib/serializeRoom";
  * this is a pure read.
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
   const { code } = await params;
@@ -34,6 +35,13 @@ export async function GET(
       { status: 404 }
     );
   }
+
+  trackActivity({
+    type: "room_fetch",
+    request,
+    route: "/api/room/[code]",
+    roomCode,
+  });
 
   return NextResponse.json({ room: serializeRoom(room) });
 }

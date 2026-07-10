@@ -10,6 +10,7 @@ import {
 } from "@/lib/pusher/server";
 import type { JoinRequestBody, JoinResponse } from "@/types/api";
 import type { Room, TargetSize } from "@/types/game";
+import { trackActivity } from "@/lib/admin/trackActivity";
 
 const VALID_TARGET_SIZES: TargetSize[] = [2, 3, 4, 5];
 const ROOM_LIFETIME_MS = 4 * 60 * 60 * 1000; // 4 hours
@@ -156,6 +157,24 @@ export async function POST(
 
     if (joined) {
       const room = serializeRoom(joined);
+      trackActivity({
+        type: "join",
+        request,
+        route: "/api/join",
+        roomCode: room.roomCode,
+        sessionId,
+        metadata: { action: "random", targetSize },
+      });
+      if (room.status === "playing") {
+        trackActivity({
+          type: "start_game",
+          request,
+          route: "/api/join",
+          roomCode: room.roomCode,
+          sessionId,
+          metadata: { source: "auto_full" },
+        });
+      }
       await announceJoinAndMaybeStart(room);
       return NextResponse.json({ room });
     }
@@ -181,6 +200,14 @@ export async function POST(
     });
 
     const room = serializeRoom(created.toObject());
+    trackActivity({
+      type: "create_room",
+      request,
+      route: "/api/join",
+      roomCode: room.roomCode,
+      sessionId,
+      metadata: { action: "random", targetSize },
+    });
     return NextResponse.json({ room });
   }
 
@@ -237,6 +264,14 @@ export async function POST(
     }
 
     const room = serializeRoom(created.toObject());
+    trackActivity({
+      type: "create_room",
+      request,
+      route: "/api/join",
+      roomCode: room.roomCode,
+      sessionId,
+      metadata: { action: "create-private", targetSize },
+    });
     return NextResponse.json({ room });
   }
 
@@ -281,6 +316,24 @@ export async function POST(
     }
 
     const room = serializeRoom(joined);
+    trackActivity({
+      type: "join",
+      request,
+      route: "/api/join",
+      roomCode: room.roomCode,
+      sessionId,
+      metadata: { action: "join-private" },
+    });
+    if (room.status === "playing") {
+      trackActivity({
+        type: "start_game",
+        request,
+        route: "/api/join",
+        roomCode: room.roomCode,
+        sessionId,
+        metadata: { source: "auto_full" },
+      });
+    }
     await announceJoinAndMaybeStart(room);
     return NextResponse.json({ room });
   }

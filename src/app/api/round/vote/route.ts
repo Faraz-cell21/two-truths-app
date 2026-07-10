@@ -10,6 +10,7 @@ import {
 } from "@/lib/pusher/server";
 import type { VoteRequestBody, VoteResponse } from "@/types/api";
 import type { Vote } from "@/types/game";
+import { trackActivity } from "@/lib/admin/trackActivity";
 
 /**
  * POST /api/round/vote
@@ -122,6 +123,15 @@ export async function POST(
     votesRemaining,
   });
 
+  trackActivity({
+    type: "vote",
+    request,
+    route: "/api/round/vote",
+    roomCode,
+    sessionId,
+    metadata: { roundNumber, isCorrect },
+  });
+
   // ---- Auto-reveal if all votes are in ----
   if (votesRemaining === 0) {
     const revealResult = await performReveal(roomCode, roundNumber);
@@ -131,6 +141,14 @@ export async function POST(
         { status: revealResult.status }
       );
     }
+    trackActivity({
+      type: "reveal",
+      request,
+      route: "/api/round/vote",
+      roomCode,
+      sessionId,
+      metadata: { roundNumber, source: "auto_reveal" },
+    });
     // Return vote success + the full reveal payload
     return NextResponse.json({
       vote,

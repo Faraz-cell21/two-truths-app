@@ -9,6 +9,7 @@ import {
   PUSHER_EVENTS,
 } from "@/lib/pusher/server";
 import type { SubmitRequestBody, SubmitResponse } from "@/types/api";
+import { trackActivity } from "@/lib/admin/trackActivity";
 
 const STATEMENT_MIN_LEN = 1;
 const STATEMENT_MAX_LEN = 200;
@@ -133,6 +134,15 @@ export async function POST(
     round: publicView,
     roundNumber,
     submittedBy: sessionId,
+  });
+
+  trackActivity({
+    type: "submit_statements",
+    request,
+    route: "/api/round/submit",
+    roomCode,
+    sessionId,
+    metadata: { roundNumber },
   });
 
   return NextResponse.json({ round: publicView });

@@ -7,6 +7,7 @@ import {
   getRoomChannelName,
   PUSHER_EVENTS,
 } from "@/lib/pusher/server";
+import { trackActivity } from "@/lib/admin/trackActivity";
 
 /**
  * POST /api/room/:code/rejoin
@@ -88,6 +89,14 @@ export async function POST(
       });
     }
   }
+
+  trackActivity({
+    type: "rejoin",
+    request,
+    route: "/api/room/[code]/rejoin",
+    roomCode,
+    sessionId,
+  });
 
   return NextResponse.json({ room: serializeRoom(updatedRoom) });
 }

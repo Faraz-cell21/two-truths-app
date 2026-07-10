@@ -7,6 +7,7 @@ import {
   getRoomChannelName,
   PUSHER_EVENTS,
 } from "@/lib/pusher/server";
+import { trackActivity } from "@/lib/admin/trackActivity";
 
 /**
  * POST /api/room/:code/leave
@@ -109,6 +110,14 @@ export async function POST(
       message: `Not enough players: ${displayName} left and the game cannot continue.`,
     });
   }
+
+  trackActivity({
+    type: "leave",
+    request,
+    route: "/api/room/[code]/leave",
+    roomCode,
+    sessionId,
+  });
 
   return NextResponse.json({ success: true });
 }

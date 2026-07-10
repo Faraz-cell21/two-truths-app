@@ -5,6 +5,7 @@ import { RoundModel } from "@/models/Round";
 import { serializeRound, serializeRoundPublicView } from "@/lib/serializeRound";
 import { computeScoreDeltas } from "@/lib/revealRound";
 import type { RoundGetResponse } from "@/types/api";
+import { trackActivity } from "@/lib/admin/trackActivity";
 
 /**
  * GET /api/round/:code/:roundNumber
@@ -45,6 +46,15 @@ export async function GET(
   const room = await RoomModel.findOne({ roomCode }).lean();
   const totalRounds = room ? room.players.length : 0;
   const gameEnded = roundNumber >= totalRounds;
+
+  trackActivity({
+    type: "round_fetch",
+    request,
+    route: "/api/round/[code]/[roundNumber]",
+    roomCode,
+    sessionId,
+    metadata: { roundNumber },
+  });
 
   // Case 1: Already revealed → return full round + deltas
   if (round.revealedAt) {

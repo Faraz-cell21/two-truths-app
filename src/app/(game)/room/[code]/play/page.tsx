@@ -931,7 +931,7 @@ export default function PlayPage() {
         </p>
         <CopyLinkButton roomCode={room.roomCode} variant="compact" />
       </div>
-      <p className="text-xs text-muted/60">
+      <p className="text-xs text-muted/85">
         Round {room.currentRound} of {room.players.length}
       </p>
     </header>

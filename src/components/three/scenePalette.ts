@@ -22,30 +22,30 @@ export function getScenePalette(
   if (!isLight) {
     return {
       background: colors.ink,
-      fog: "#101218",
-      fogNear: 10,
-      fogFar: 22,
+      fog: "#0e0f14",
+      fogNear: 8,
+      fogFar: 18,
       truth: colors.truth,
       lie: colors.lie,
-      muted: "#6f7380",
+      muted: "#5c6070",
       accent: "#c8cdd8",
       blend: THREE.AdditiveBlending,
-      opacityScale: 0.85,
-      ambient: 0.38,
+      opacityScale: 0.95,
+      ambient: 0.32,
     };
   }
 
   return {
-    background: "#d8dbe3",
-    fog: "#e4e6ec",
-    fogNear: 12,
-    fogFar: 24,
+    background: "#d9dce4",
+    fog: "#e6e8ee",
+    fogNear: 9,
+    fogFar: 20,
     truth: "#3d4f7a",
     lie: "#a33d5c",
-    muted: "#6a7080",
+    muted: "#7a8090",
     accent: "#4a5568",
     blend: THREE.NormalBlending,
-    opacityScale: 1.9,
-    ambient: 0.8,
+    opacityScale: 1.7,
+    ambient: 0.72,
   };
 }

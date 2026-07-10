@@ -336,7 +336,7 @@ export default function LobbyPage() {
               📋
             </span>
           </button>
-          <p className="text-xs text-muted/60">
+          <p className="text-xs text-muted/85">
             Share this code with the other players
           </p>
           <div className="flex justify-center pt-2">

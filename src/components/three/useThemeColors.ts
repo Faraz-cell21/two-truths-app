@@ -13,9 +13,9 @@ export interface ThemeColors {
 const FALLBACK_COLORS: ThemeColors = {
   truth: "#8ba3d9",
   lie: "#d46b8c",
-  muted: "#9b9eaa",
+  muted: "#e8e8ec",
   ink: "#0c0d10",
-  warm: "#f2f1ef",
+  warm: "#ffffff",
 };
 
 function readThemeColors(): ThemeColors {

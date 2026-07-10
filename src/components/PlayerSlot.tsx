@@ -73,7 +73,7 @@ export default function PlayerSlot({ player, isSelf, index }: PlayerSlotProps) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm text-muted">Waiting for player…</p>
-        <p className="text-xs text-muted/60">Slot {index + 1}</p>
+        <p className="text-xs text-muted/85">Slot {index + 1}</p>
       </div>
     </div>
   );

@@ -15,8 +15,8 @@
   --theme-border: #2c2e36;
   --theme-truth: #8ba3d9;
   --theme-lie: #d46b8c;
-  --theme-warm: #f2f1ef;
-  --theme-muted: #9b9eaa;
+  --theme-warm: #ffffff;
+  --theme-muted: #e8e8ec;
   --theme-glow: rgba(139, 163, 217, 0.32);
 }
 
@@ -25,12 +25,12 @@
   --theme-ink: #eef0f4;
   --theme-card: #ffffff;
   --theme-field: #e6e8ee;
-  --theme-border: #cfd3dc;
-  --theme-truth: #3d4f7a;
-  --theme-lie: #a33d5c;
-  --theme-warm: #1a1b20;
-  --theme-muted: #5c6070;
-  --theme-glow: rgba(61, 79, 122, 0.26);
+  --theme-border: #b8bec9;
+  --theme-truth: #2f4570;
+  --theme-lie: #9a2f52;
+  --theme-warm: #000000;
+  --theme-muted: #1a1a1a;
+  --theme-glow: rgba(47, 69, 112, 0.28);
 }
 
 /* =====================================================================
@@ -252,19 +252,33 @@ textarea,
 }
 
 .game-bg-overlay {
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--theme-ink) 42%, transparent),
-    transparent 44%,
-    color-mix(in srgb, var(--theme-ink) 52%, transparent)
-  );
+  background:
+    radial-gradient(
+      ellipse 70% 55% at 50% 42%,
+      transparent 0%,
+      color-mix(in srgb, var(--theme-ink) 25%, transparent) 70%,
+      color-mix(in srgb, var(--theme-ink) 72%, transparent) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--theme-ink) 35%, transparent),
+      transparent 40%,
+      color-mix(in srgb, var(--theme-ink) 55%, transparent)
+    );
 }
 
 [data-theme="light"] .game-bg-overlay {
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--theme-ink) 62%, transparent),
-    transparent 48%,
-    color-mix(in srgb, #9aa3b5 30%, transparent)
-  );
+  background:
+    radial-gradient(
+      ellipse 70% 55% at 50% 42%,
+      transparent 0%,
+      color-mix(in srgb, var(--theme-ink) 20%, transparent) 65%,
+      color-mix(in srgb, #9aa3b5 45%, transparent) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--theme-ink) 45%, transparent),
+      transparent 45%,
+      color-mix(in srgb, #8b7355 18%, transparent)
+    );
 }

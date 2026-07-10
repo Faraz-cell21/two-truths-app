@@ -89,7 +89,7 @@ export default function RevealPanel({
                     </p>
                   )}
                   {voteCount === 0 && (
-                    <p className="text-xs text-muted/60">
+                    <p className="text-xs text-muted/85">
                       No one guessed this statement.
                     </p>
                   )}

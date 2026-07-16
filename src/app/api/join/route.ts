@@ -11,6 +11,7 @@ import {
 import type { JoinRequestBody, JoinResponse } from "@/types/api";
 import type { Room, TargetSize } from "@/types/game";
 import { trackActivity } from "@/lib/admin/trackActivity";
+import { AVATAR_COLORS, nextUniqueAvatarColor } from "@/lib/avatarTokens";
 
 const VALID_TARGET_SIZES: TargetSize[] = [2, 3, 4, 5];
 const ROOM_LIFETIME_MS = 4 * 60 * 60 * 1000; // 4 hours
@@ -42,15 +43,34 @@ async function announceJoinAndMaybeStart(room: Room) {
  * the room to "playing" if that join fills it. Uses a single
  * findOneAndUpdate with a $expr size check so two simultaneous joins
  * can't both succeed and overfill the room.
+ *
+ * Avatar color is chosen from unused seat tokens so each player in the
+ * room gets a unique color.
  */
 async function addPlayerToRoom(
   filter: Record<string, unknown>,
   sessionId: string,
   displayName: string
 ) {
+  const existing = await RoomModel.findOne({
+    ...filter,
+    "players.sessionId": { $ne: sessionId },
+  }).lean();
+
+  if (!existing) {
+    return null;
+  }
+
+  const avatarColor = nextUniqueAvatarColor(
+    existing.players.map(
+      (p: { avatarColor?: string }) => p.avatarColor
+    )
+  );
+
   const newPlayer = {
     sessionId,
     displayName,
+    avatarColor,
     joinedAt: new Date(),
     connected: true,
     score: 0,
@@ -58,7 +78,9 @@ async function addPlayerToRoom(
 
   const fullFilter = {
     ...filter,
-    "players.sessionId": { $ne: sessionId }, // avoid duplicate join by same session
+    "players.sessionId": { $ne: sessionId },
+    // Re-check seat is still free under concurrency
+    $expr: filter.$expr ?? { $lt: [{ $size: "$players" }, "$targetSize"] },
   };
 
   const updated = await RoomModel.findOneAndUpdate(
@@ -90,6 +112,21 @@ async function addPlayerToRoom(
   }
 
   return updated;
+}
+
+function firstPlayer(
+  sessionId: string,
+  displayName: string,
+  now: Date
+) {
+  return {
+    sessionId,
+    displayName,
+    avatarColor: AVATAR_COLORS[0],
+    joinedAt: now,
+    connected: true,
+    score: 0,
+  };
 }
 
 export async function POST(
@@ -186,15 +223,7 @@ export async function POST(
       targetSize,
       status: "waiting",
       currentRound: 0,
-      players: [
-        {
-          sessionId,
-          displayName: trimmedName,
-          joinedAt: now,
-          connected: true,
-          score: 0,
-        },
-      ],
+      players: [firstPlayer(sessionId, trimmedName, now)],
       createdAt: now,
       expiresAt,
     });
@@ -232,15 +261,7 @@ export async function POST(
           targetSize,
           status: "waiting",
           currentRound: 0,
-          players: [
-            {
-              sessionId,
-              displayName: trimmedName,
-              joinedAt: now,
-              connected: true,
-              score: 0,
-            },
-          ],
+          players: [firstPlayer(sessionId, trimmedName, now)],
           createdAt: now,
           expiresAt,
         });

@@ -9,11 +9,13 @@ import {
   PUSHER_EVENTS,
 } from "@/lib/pusher/client";
 import StatementForm from "@/components/StatementForm";
+import AwaitingStatements from "@/components/AwaitingStatements";
 import VotePanel, { type VoteResult } from "@/components/VotePanel";
 import RevealPanel from "@/components/RevealPanel";
 import Scoreboard from "@/components/Scoreboard";
 import CopyLinkButton from "@/components/CopyLinkButton";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import PlayerAvatar from "@/components/PlayerAvatar";
 import { useGameScenePhase } from "@/components/three/useGameScenePhase";
 import type { Room, Round, RoundPublicView, Player, Vote, ScoreDelta } from "@/types/game";
 import type { SubmitResponse, RoundGetSuccessResponse } from "@/types/api";
@@ -954,7 +956,7 @@ export default function PlayPage() {
         {/* ---- Player status bar ---- */}
         {("room" in state) && (
           <div className="flex flex-wrap items-center justify-center gap-2">
-            {state.room.players.map((p: Player) => {
+            {state.room.players.map((p: Player, index: number) => {
               const isSelf = p.sessionId === state.sessionId;
               return (
                 <div
@@ -967,7 +969,12 @@ export default function PlayPage() {
                     (!p.connected ? " opacity-50" : "")
                   }
                 >
-                  {/* Connection dot */}
+                  <PlayerAvatar
+                    displayName={p.displayName}
+                    avatarColor={p.avatarColor}
+                    index={index}
+                    size="sm"
+                  />
                   <span
                     className={
                       "inline-block h-2 w-2 shrink-0 rounded-full " +
@@ -975,7 +982,6 @@ export default function PlayPage() {
                     }
                     title={p.connected ? "Online" : "Disconnected"}
                   />
-                  {/* Name */}
                   <span
                     className={
                       "truncate max-w-[100px] font-medium " +
@@ -989,7 +995,6 @@ export default function PlayPage() {
                       </span>
                     )}
                   </span>
-                  {/* Score */}
                   <span
                     className={
                       "ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums " +
@@ -1017,67 +1022,72 @@ export default function PlayPage() {
           </div>
         )}
 
-        {state.phase === "awaiting_statements" && (
-          <div className="animate-fade-in-up space-y-6" key="awaiting_statements">
-            {renderHeader(state.room)}
-            <div className="interrogation-card text-center space-y-4">
-              <h2 className="font-serif text-lg font-semibold text-warm">
-                Awaiting statements
-              </h2>
-              <hr className="polygraph-line" />
-              <p className="text-muted">
-                <span className="font-semibold text-warm">
-                  {state.submitterName}
-                </span>{" "}
-                is writing their two truths and a lie…
-              </p>
-              <div className="flex justify-center gap-1 py-2">
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="inline-block h-2 w-2 animate-pulse rounded-full bg-muted"
-                    style={{ animationDelay: `${i * 200}ms` }}
-                  />
-                ))}
-              </div>
+        {state.phase === "awaiting_statements" && (() => {
+          const submitterIdx =
+            (state.room.currentRound - 1) % state.room.players.length;
+          const submitter = state.room.players[submitterIdx];
+          return (
+            <div className="animate-fade-in-up space-y-6" key="awaiting_statements">
+              {renderHeader(state.room)}
+              <AwaitingStatements
+                submitterName={state.submitterName}
+                submitterAvatarColor={submitter?.avatarColor}
+                submitterIndex={submitterIdx}
+                currentRound={state.room.currentRound}
+                totalRounds={state.room.players.length}
+              />
             </div>
-          </div>
-        )}
+          );
+        })()}
 
-        {state.phase === "vote" && (
-          <div className="animate-fade-in-up space-y-6" key="vote">
-            {renderHeader(state.room)}
-            <VotePanel
-              statements={state.round.statements}
-              submittedBy={getSubmitterName(state.room, state.round.roundNumber)}
-              votes={state.round.votes}
-              playerCount={state.room.players.length}
-              onVote={handleVote}
-              hasVoted={false}
-              votedIndex={state.votedIndex}
-            />
-          </div>
-        )}
+        {state.phase === "vote" && (() => {
+          const submitterIdx =
+            (state.round.roundNumber - 1) % state.room.players.length;
+          const submitter = state.room.players[submitterIdx];
+          return (
+            <div className="animate-fade-in-up space-y-6" key="vote">
+              {renderHeader(state.room)}
+              <VotePanel
+                statements={state.round.statements}
+                submittedBy={getSubmitterName(state.room, state.round.roundNumber)}
+                submittedByAvatarColor={submitter?.avatarColor}
+                submittedByIndex={submitterIdx}
+                votes={state.round.votes}
+                playerCount={state.room.players.length}
+                onVote={handleVote}
+                hasVoted={false}
+                votedIndex={state.votedIndex}
+              />
+            </div>
+          );
+        })()}
 
-        {state.phase === "awaiting_votes" && (
-          <div className="animate-fade-in-up space-y-6" key="awaiting_votes">
-            {renderHeader(state.room)}
-            <VotePanel
-              statements={state.round.statements}
-              submittedBy={getSubmitterName(state.room, state.round.roundNumber)}
-              votes={state.votes}
-              playerCount={state.playerCount}
-              onVote={async () => {}}
-              hasVoted={!state.isSubmitter && state.votedIndex !== null}
-              votedIndex={state.votedIndex}
-              lieIndex={state.lieIndex}
-              voteResults={state.voteResults}
-              isSubmitter={state.isSubmitter}
-              showContinue={state.allVotesIn && state.pendingReveal !== null}
-              onContinue={handleContinueFromResults}
-            />
-          </div>
-        )}
+        {state.phase === "awaiting_votes" && (() => {
+          const submitterIdx =
+            (state.round.roundNumber - 1) % state.room.players.length;
+          const submitter = state.room.players[submitterIdx];
+          return (
+            <div className="animate-fade-in-up space-y-6" key="awaiting_votes">
+              {renderHeader(state.room)}
+              <VotePanel
+                statements={state.round.statements}
+                submittedBy={getSubmitterName(state.room, state.round.roundNumber)}
+                submittedByAvatarColor={submitter?.avatarColor}
+                submittedByIndex={submitterIdx}
+                votes={state.votes}
+                playerCount={state.playerCount}
+                onVote={async () => {}}
+                hasVoted={!state.isSubmitter && state.votedIndex !== null}
+                votedIndex={state.votedIndex}
+                lieIndex={state.lieIndex}
+                voteResults={state.voteResults}
+                isSubmitter={state.isSubmitter}
+                showContinue={state.allVotesIn && state.pendingReveal !== null}
+                onContinue={handleContinueFromResults}
+              />
+            </div>
+          );
+        })()}
 
         {state.phase === "reveal" && (
           <div className="animate-fade-in-up space-y-6" key="reveal">
@@ -1092,6 +1102,7 @@ export default function PlayPage() {
               players={state.room.players.map((p: Player) => ({
                 sessionId: p.sessionId,
                 displayName: p.displayName,
+                avatarColor: p.avatarColor,
               }))}
             />
             <div className="text-center">

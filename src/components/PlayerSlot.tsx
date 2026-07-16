@@ -1,11 +1,11 @@
 import type { Player } from "@/types/game";
+import PlayerAvatar from "@/components/PlayerAvatar";
 
 /* ===================================================================
    PlayerSlot — a single cell in the lobby's player grid.
 
-   When occupied, shows the player's display name styled like a case-file
-   entry. When empty, shows a dashed placeholder indicating the room is
-   waiting for another detective to join.
+   When occupied, shows the player's avatar token + display name.
+   When empty, shows a dashed placeholder for the waiting seat.
    =================================================================== */
 
 interface PlayerSlotProps {
@@ -23,20 +23,13 @@ export default function PlayerSlot({ player, isSelf, index }: PlayerSlotProps) {
           (isSelf ? "ring-1 ring-truth/40" : "")
         }
       >
-        {/* Avatar — initials in a circle */}
-        <div
-          className={
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-mono text-sm font-bold " +
-            (isSelf
-              ? "bg-truth text-ink"
-              : "bg-border text-warm")
-          }
-          aria-hidden="true"
-        >
-          {getInitials(player.displayName)}
-        </div>
+        <PlayerAvatar
+          displayName={player.displayName}
+          avatarColor={player.avatarColor}
+          index={index}
+          size="md"
+        />
 
-        {/* Name + label */}
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-warm">
             {player.displayName}
@@ -50,7 +43,6 @@ export default function PlayerSlot({ player, isSelf, index }: PlayerSlotProps) {
           </p>
         </div>
 
-        {/* Connected indicator */}
         <div
           className={
             "h-2 w-2 rounded-full " +
@@ -62,7 +54,6 @@ export default function PlayerSlot({ player, isSelf, index }: PlayerSlotProps) {
     );
   }
 
-  /* ---- Empty slot ---- */
   return (
     <div className="interrogation-card flex items-center gap-4 border-dashed opacity-60">
       <div
@@ -77,13 +68,4 @@ export default function PlayerSlot({ player, isSelf, index }: PlayerSlotProps) {
       </div>
     </div>
   );
-}
-
-/** "Foo Bar" → "FB", "Alice" → "AL" */
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import confetti from "canvas-confetti";
 import type { Player } from "@/types/game";
 import { useTheme } from "@/components/ThemeProvider";
+import PlayerAvatar from "@/components/PlayerAvatar";
 
 /* ===================================================================
    Scoreboard — ranked player standings shown between rounds and at
@@ -173,6 +174,13 @@ export default function Scoreboard({
                   : "")
               }
             >
+              <PlayerAvatar
+                displayName={player.displayName}
+                avatarColor={player.avatarColor}
+                index={rank}
+                size="md"
+              />
+
               {/* Rank */}
               <span
                 className={

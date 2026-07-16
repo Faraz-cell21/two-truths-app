@@ -5,6 +5,8 @@ export type TargetSize = 2 | 3 | 4 | 5;
 export interface Player {
   sessionId: string;
   displayName: string;
+  /** Unique seat color token within the room. */
+  avatarColor: string;
   joinedAt: string;
   connected: boolean;
   score: number;

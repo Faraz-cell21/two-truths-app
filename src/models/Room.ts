@@ -4,6 +4,7 @@ const PlayerSchema = new Schema(
   {
     sessionId: { type: String, required: true },
     displayName: { type: String, required: true },
+    avatarColor: { type: String, required: false },
     joinedAt: { type: Date, required: true, default: Date.now },
     connected: { type: Boolean, required: true, default: true },
     score: { type: Number, required: true, default: 0 },

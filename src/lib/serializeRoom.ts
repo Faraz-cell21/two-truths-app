@@ -1,4 +1,5 @@
 import type { Room, TargetSize } from "@/types/game";
+import { avatarColorAt } from "@/lib/avatarTokens";
 
 /**
  * Raw shape that comes back from a Mongoose `.lean()` call on a Room
@@ -14,6 +15,7 @@ export interface LeanRoomDocument {
   players: Array<{
     sessionId: string;
     displayName: string;
+    avatarColor?: string;
     joinedAt: Date;
     connected: boolean;
     score: number;
@@ -38,9 +40,10 @@ export function serializeRoom(doc: LeanRoomDocument): Room {
     targetSize: doc.targetSize as TargetSize,
     status: doc.status,
     currentRound: doc.currentRound,
-    players: doc.players.map((p) => ({
+    players: doc.players.map((p, index) => ({
       sessionId: p.sessionId,
       displayName: p.displayName,
+      avatarColor: p.avatarColor || avatarColorAt(index),
       joinedAt: p.joinedAt.toISOString(),
       connected: p.connected,
       score: p.score,

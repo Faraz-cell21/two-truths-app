@@ -1,6 +1,7 @@
 "use client";
 
 import type { Vote, ScoreDelta } from "@/types/game";
+import PlayerAvatar from "@/components/PlayerAvatar";
 
 /* ===================================================================
    RevealPanel — shows the round results after the lie is revealed.
@@ -16,7 +17,11 @@ interface RevealPanelProps {
   scores: Array<{ sessionId: string; displayName: string; score: number }>;
   currentPlayerSessionId: string;
   votes: Vote[];
-  players: Array<{ sessionId: string; displayName: string }>;
+  players: Array<{
+    sessionId: string;
+    displayName: string;
+    avatarColor?: string;
+  }>;
 }
 
 export default function RevealPanel({
@@ -106,30 +111,39 @@ export default function RevealPanel({
           Score changes
         </h3>
         <div className="space-y-2">
-          {scoreDeltas.map((d) => {
+          {scoreDeltas.map((d, index) => {
             const scored = d.delta > 0;
             const isSelf = d.sessionId === currentPlayerSessionId;
+            const player = players.find((p) => p.sessionId === d.sessionId);
 
             return (
               <div
                 key={d.sessionId}
                 className={
-                  "flex items-center justify-between rounded-lg px-4 py-2 " +
+                  "flex items-center justify-between gap-3 rounded-lg px-4 py-2 " +
                   (scored
                     ? "bg-truth/10 border border-truth/20"
                     : "bg-card border border-transparent")
                 }
               >
-                <span className="text-sm text-warm">
-                  {scored && (
-                    <span className="mr-1.5 text-xs" aria-hidden>
-                      &#127942;
-                    </span>
-                  )}
-                  {d.displayName}
-                  {isSelf && (
-                    <span className="ml-1 text-xs text-muted">(you)</span>
-                  )}
+                <span className="flex min-w-0 items-center gap-2.5 text-sm text-warm">
+                  <PlayerAvatar
+                    displayName={d.displayName}
+                    avatarColor={player?.avatarColor}
+                    index={index}
+                    size="sm"
+                  />
+                  <span className="truncate">
+                    {scored && (
+                      <span className="mr-1.5 text-xs" aria-hidden>
+                        &#127942;
+                      </span>
+                    )}
+                    {d.displayName}
+                    {isSelf && (
+                      <span className="ml-1 text-xs text-muted">(you)</span>
+                    )}
+                  </span>
                 </span>
                 <span
                   className={

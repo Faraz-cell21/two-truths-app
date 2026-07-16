@@ -374,12 +374,13 @@ export default function HomePage() {
             <p>
               <span className="font-semibold text-warm">3. Everyone else</span>{" "}
               votes on which statement they think is the lie. You have 30
-              seconds to cast your vote.
+              seconds — if time runs out with no vote, it counts as wrong.
             </p>
             <p>
               <span className="font-semibold text-warm">4. Scoring:</span> +1
               point for guessing the lie correctly. +1 point to the writer for
-              each player they fooled.
+              each player they fooled (including anyone who didn&apos;t vote in
+              time).
             </p>
             <p>
               <span className="font-semibold text-warm">5. After everyone</span>{" "}

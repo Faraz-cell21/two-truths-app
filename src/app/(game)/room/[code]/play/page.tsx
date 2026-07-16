@@ -801,6 +801,23 @@ export default function PlayPage() {
     });
   }, [state]);
 
+  /** Timer expired — close voting; missing votes count as wrong for the writer. */
+  const handleVoteTimeout = useCallback(async () => {
+    if (state.phase !== "vote" && state.phase !== "awaiting_votes") return;
+
+    const roundNumber = state.round.roundNumber;
+
+    try {
+      await fetch("/api/round/reveal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomCode, roundNumber }),
+      });
+    } catch {
+      // Another client may have revealed already; Pusher will sync state.
+    }
+  }, [state, roomCode]);
+
   const handleRevealContinue = useCallback(() => {
     if (state.phase !== "reveal") return;
 
@@ -1065,6 +1082,7 @@ export default function PlayPage() {
                 onVote={handleVote}
                 hasVoted={false}
                 votedIndex={state.votedIndex}
+                onTimeout={handleVoteTimeout}
               />
             </div>
           );
@@ -1092,6 +1110,7 @@ export default function PlayPage() {
                 isSubmitter={state.isSubmitter}
                 showContinue={state.allVotesIn && state.pendingReveal !== null}
                 onContinue={handleContinueFromResults}
+                onTimeout={handleVoteTimeout}
               />
             </div>
           );

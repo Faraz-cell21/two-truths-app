@@ -30,6 +30,8 @@ interface VotePanelProps {
   isSubmitter?: boolean;
   showContinue?: boolean;
   onContinue?: () => void;
+  /** Fired once when the 30s vote timer reaches 0 (triggers reveal). */
+  onTimeout?: () => void;
 }
 
 const TIMER_SECONDS = 30;
@@ -51,16 +53,21 @@ export default function VotePanel({
   isSubmitter = false,
   showContinue = false,
   onContinue,
+  onTimeout,
 }: VotePanelProps) {
   const [timer, setTimer] = useState(TIMER_SECONDS);
   const [voting, setVoting] = useState(false);
   const [pressed, setPressed] = useState<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutFiredRef = useRef(false);
 
   const showResults = lieIndex !== null && voteResults.length > 0;
   const urgent = !hasVoted && !isSubmitter && timer <= 5;
+  const timeExpired = timer === 0 && !showResults;
 
   useEffect(() => {
+    // Only voters who already cast stop the clock. Submitters (and anyone
+    // still deciding) must keep counting down so timeout can force-reveal.
     if (hasVoted) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       return;
@@ -79,8 +86,14 @@ export default function VotePanel({
     };
   }, [hasVoted]);
 
+  useEffect(() => {
+    if (timer !== 0 || !onTimeout || timeoutFiredRef.current) return;
+    timeoutFiredRef.current = true;
+    onTimeout();
+  }, [timer, onTimeout]);
+
   const handleVote = async (index: 0 | 1 | 2) => {
-    if (hasVoted || voting || isSubmitter) return;
+    if (hasVoted || voting || isSubmitter || timeExpired) return;
     setPressed(index);
     setVoting(true);
     try {
@@ -130,7 +143,9 @@ export default function VotePanel({
               Waiting for votes…
             </h2>
             <p className="max-w-xs text-sm text-muted">
-              The others are picking which statement is the lie.
+              {timeExpired
+                ? "Time's up — revealing results…"
+                : "The others are picking which statement is the lie."}
             </p>
           </div>
 
@@ -185,7 +200,7 @@ export default function VotePanel({
     if (!showResults || lieIndex === null) {
       const isSelected = hasVoted && votedIndex === index;
       if (isSelected) return "vote-option-selected border-lie ring-2 ring-lie/60";
-      if (hasVoted || isSubmitter) return "opacity-65 cursor-default";
+      if (hasVoted || isSubmitter || timeExpired) return "opacity-65 cursor-default";
       return "vote-option-interactive cursor-pointer";
     }
 
@@ -349,7 +364,7 @@ export default function VotePanel({
               key={i}
               type="button"
               onClick={() => handleVote(i as 0 | 1 | 2)}
-              disabled={hasVoted || voting || isSubmitter}
+              disabled={hasVoted || voting || isSubmitter || timeExpired}
               className={
                 "vote-option interrogation-card relative w-full overflow-hidden text-left " +
                 getStatementStyle(i) +
@@ -459,8 +474,8 @@ export default function VotePanel({
               ? votesCast === 0
                 ? "No votes yet"
                 : "Votes are coming in…"
-              : timer === 0
-                ? "Time's up — pick one"
+              : timeExpired
+                ? "Time's up — no vote counts as wrong"
                 : "Tap the statement you think is the lie"}
         </p>
       )}

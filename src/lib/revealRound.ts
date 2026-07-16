@@ -173,7 +173,7 @@ export function computeScoreDeltas(
     submittedBy: string;
     votes: Array<{ sessionId: string; votedIndex: number }>;
   },
-  players: Array<{ sessionId: string; displayName: string }>
+  players: Array<{ sessionId: string; displayName: string; connected?: boolean }>
 ): ScoreDelta[] {
   const deltas: Record<string, number> = {};
   const reasons: Record<string, ScoreDelta["reason"]> = {};
@@ -184,6 +184,8 @@ export function computeScoreDeltas(
     reasons[p.sessionId] = "none";
   }
 
+  const voterIds = new Set(round.votes.map((v) => v.sessionId));
+
   for (const vote of round.votes) {
     if (vote.votedIndex === round.lieIndex) {
       deltas[vote.sessionId] = (deltas[vote.sessionId] || 0) + 1;
@@ -192,6 +194,17 @@ export function computeScoreDeltas(
       deltas[round.submittedBy] = (deltas[round.submittedBy] || 0) + 1;
       reasons[round.submittedBy] = "fooled";
     }
+  }
+
+  // No vote counts as wrong — same as a missed guess.
+  // Match vote-route eligibility: connected non-submitters only.
+  for (const p of players) {
+    if (p.sessionId === round.submittedBy) continue;
+    if (p.connected === false) continue;
+    if (voterIds.has(p.sessionId)) continue;
+
+    deltas[round.submittedBy] = (deltas[round.submittedBy] || 0) + 1;
+    reasons[round.submittedBy] = "fooled";
   }
 
   return players.map((p) => ({

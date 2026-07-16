@@ -931,7 +931,7 @@ export default function PlayPage() {
           Case file{" "}
           <span className="font-mono text-warm">{room.roomCode}</span>
         </p>
-        <CopyLinkButton roomCode={room.roomCode} variant="compact" />
+        <CopyLinkButton roomCode={room.roomCode} />
       </div>
       <p className="text-xs text-muted/85">
         Round {room.currentRound} of {room.players.length}

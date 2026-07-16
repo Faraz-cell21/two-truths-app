@@ -428,7 +428,7 @@ export default function InterrogationScene({
 }) {
   return (
     <Canvas
-      className="h-full w-full"
+      className="pointer-events-none h-full w-full"
       camera={{ position: [0, 0.35, 5.4], fov: 42 }}
       dpr={[1, 1.6]}
       frameloop={paused ? "never" : "always"}

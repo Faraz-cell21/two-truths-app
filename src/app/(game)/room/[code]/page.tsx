@@ -326,22 +326,20 @@ export default function LobbyPage() {
           <p className="text-xs uppercase tracking-[0.3em] text-muted">
             Case file #
           </p>
-          <button
-            onClick={copyRoomCode}
-            className="group inline-flex items-center gap-3 font-mono text-3xl font-bold tracking-wider text-warm transition-colors hover:text-truth"
-            title="Click to copy"
-          >
-            <span>{room.roomCode}</span>
-            <span className="text-sm text-muted opacity-0 transition-opacity group-hover:opacity-100">
-              📋
-            </span>
-          </button>
-          <p className="text-xs text-muted/85">
-            Share this code with the other players
-          </p>
-          <div className="flex justify-center pt-2">
-            <CopyLinkButton roomCode={room.roomCode} variant="compact" />
+          <div className="inline-flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={copyRoomCode}
+              className="font-mono text-3xl font-bold tracking-wider text-warm transition-colors hover:text-truth"
+              title="Click to copy room code"
+            >
+              {room.roomCode}
+            </button>
+            <CopyLinkButton roomCode={room.roomCode} />
           </div>
+          <p className="text-xs text-muted/85">
+            Share this code or the invite link with the other players
+          </p>
         </div>
 
         {/* ---- Player slots ---- */}

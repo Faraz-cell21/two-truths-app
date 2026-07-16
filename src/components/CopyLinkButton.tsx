@@ -3,18 +3,21 @@
 import { useState, useCallback } from "react";
 
 /* ===================================================================
-   CopyLinkButton — copies the room URL to clipboard, with Web Share
-   API support on mobile. Shows a brief "Copied!" confirmation.
+   CopyLinkButton — icon control that copies the room invite URL.
+
+   Always copies the full invite link (origin + /room/CODE), on desktop
+   and mobile. Uses clipboard API when available, otherwise a textarea
+   fallback (needed on some mobile / non-HTTPS LAN origins).
    =================================================================== */
 
 interface CopyLinkButtonProps {
   roomCode: string;
-  variant?: "default" | "compact";
+  className?: string;
 }
 
 export default function CopyLinkButton({
   roomCode,
-  variant = "default",
+  className = "",
 }: CopyLinkButtonProps) {
   const [copied, setCopied] = useState(false);
 
@@ -23,78 +26,84 @@ export default function CopyLinkButton({
       ? `${window.location.origin}/room/${roomCode}`
       : "";
 
+  const markCopied = useCallback(() => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }, []);
+
+  const writeClipboard = useCallback(async (text: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch {
+        // Fall through to textarea method (common on HTTP LAN phones)
+      }
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "0";
+    textarea.style.left = "0";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!ok) throw new Error("copy failed");
+  }, []);
+
   const handleCopy = useCallback(async () => {
-    // Try Web Share API first (mobile)
-    if (typeof navigator !== "undefined" && navigator.share) {
+    const inviteLink = roomUrl || `${window.location.origin}/room/${roomCode}`;
+
+    // Always copy the full invite URL (desktop + mobile).
+    try {
+      await writeClipboard(inviteLink);
+      markCopied();
+      return;
+    } catch {
+      // Clipboard blocked — try native share as a fallback
+    }
+
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
         await navigator.share({
           title: "Two Truths and a Lie: Join my game",
-          text: `Join my Two Truths and a Lie game! Room code: ${roomCode}`,
-          url: roomUrl,
+          text: `Join my game! Room code: ${roomCode}`,
+          url: inviteLink,
         });
+        markCopied();
         return;
       } catch {
-        // User cancelled or API failed — fall through to clipboard
+        // cancelled / unavailable
       }
     }
 
-    // Fallback: clipboard copy
-    try {
-      await navigator.clipboard.writeText(roomCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API not available — do nothing
-    }
-  }, [roomCode, roomUrl]);
-
-  if (variant === "compact") {
-    return (
-      <button
-        onClick={handleCopy}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-muted hover:text-warm"
-        title="Copy invite link"
-      >
-        {copied ? (
-          <span className="text-truth">Copied!</span>
-        ) : (
-          <>
-            <CopyIcon />
-            <span>Copy invite link</span>
-          </>
-        )}
-      </button>
-    );
-  }
+    markCopied();
+  }, [roomCode, roomUrl, markCopied, writeClipboard]);
 
   return (
     <button
+      type="button"
       onClick={handleCopy}
       className={
-        "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium text-sm transition-all " +
-        (copied
-          ? "bg-truth/10 text-truth border border-truth/30"
-          : "bg-card border border-border text-warm hover:border-muted")
+        "copy-link-icon relative z-20 inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full border border-border/80 bg-card/80 text-muted transition-all hover:border-truth/50 hover:text-truth active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-truth/40 " +
+        (copied ? "border-truth/40 text-truth" : "") +
+        (className ? ` ${className}` : "")
       }
+      title={copied ? "Copied!" : "Copy invite link"}
+      aria-label={copied ? "Invite link copied" : "Copy invite link"}
     >
-      {copied ? (
-        <>
-          <CheckIcon />
-          Link copied!
-        </>
-      ) : (
-        <>
-          <ShareIcon />
-          Share invite link
-        </>
-      )}
+      {copied ? <CheckIcon /> : <LinkIcon />}
     </button>
   );
 }
 
-/* ---- tiny inline icons ---- */
-
-function ShareIcon() {
+function LinkIcon() {
   return (
     <svg
       width="16"
@@ -105,30 +114,11 @@ function ShareIcon() {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
+      className="pointer-events-none"
     >
-      <circle cx="18" cy="5" r="3" />
-      <circle cx="6" cy="12" r="3" />
-      <circle cx="18" cy="19" r="3" />
-      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-    </svg>
-  );
-}
-
-function CopyIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
     </svg>
   );
 }
@@ -144,6 +134,8 @@ function CheckIcon() {
       strokeWidth="2.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
+      className="pointer-events-none"
     >
       <polyline points="20 6 9 17 4 12" />
     </svg>

@@ -8,6 +8,7 @@ import {
   PUSHER_EVENTS,
 } from "@/lib/pusher/server";
 import { trackActivity } from "@/lib/admin/trackActivity";
+import { playingExpiresAt } from "@/lib/roomLifetime";
 
 /**
  * POST /api/room/:code/start
@@ -52,7 +53,13 @@ export async function POST(
   // lobby instances call this at the same time.
   const updated = await RoomModel.findOneAndUpdate(
     { roomCode, status: "waiting" },
-    { $set: { status: "playing", currentRound: 1 } },
+    {
+      $set: {
+        status: "playing",
+        currentRound: 1,
+        expiresAt: playingExpiresAt(),
+      },
+    },
     { new: true }
   ).lean();
 

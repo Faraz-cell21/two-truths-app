@@ -407,8 +407,9 @@ export default function AdminDashboardPage() {
             Data cleanup
           </h2>
           <p className="text-sm text-muted">
-            Use these tools to keep MongoDB lean. Game data already auto-expires
-            after about 4 hours, but activity logs persist until you purge them.
+            Use these tools to keep MongoDB lean. Rooms auto-expire (lobbies in
+            minutes, active games ~1 hour, finished ~30 minutes), but activity
+            logs persist until you purge them.
           </p>
 
           <div className="flex flex-wrap items-center gap-3">

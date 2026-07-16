@@ -385,7 +385,13 @@ export default function HomePage() {
             <p>
               <span className="font-semibold text-warm">5. After everyone</span>{" "}
               has had a turn submitting, the detective with the most points wins
-              the case.
+              the case. Finished rooms are removed after about 30 minutes if
+              nobody plays again.
+            </p>
+            <p>
+              <span className="font-semibold text-warm">Lobbies:</span> random
+              rooms close after 5 minutes if they don&apos;t fill; private rooms
+              after 10 minutes.
             </p>
           </div>
         </details>

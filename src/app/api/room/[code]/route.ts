@@ -3,13 +3,18 @@ import { connectToDatabase } from "@/lib/db/mongodb";
 import { RoomModel } from "@/models/Room";
 import { serializeRoom } from "@/lib/serializeRoom";
 import { trackActivity } from "@/lib/admin/trackActivity";
+import {
+  deleteRoomAndRounds,
+  isExpired,
+} from "@/lib/roomLifetime";
 
 /**
  * GET /api/room/:code
  *
  * Returns the current state of a room — used by the lobby page on initial
- * load and for reconnection after a page refresh. Does not mutate anything;
- * this is a pure read.
+ * load and for reconnection after a page refresh.
+ *
+ * Waiting lobbies past expiresAt are deleted permanently (410).
  */
 export async function GET(
   request: NextRequest,
@@ -34,6 +39,22 @@ export async function GET(
       { error: "Room not found." },
       { status: 404 }
     );
+  }
+
+  if (isExpired(room.expiresAt as Date)) {
+    // Waiting lobbies and finished games past their window are gone forever.
+    if (room.status === "waiting" || room.status === "finished") {
+      await deleteRoomAndRounds(roomCode);
+      return NextResponse.json(
+        {
+          error:
+            room.status === "waiting"
+              ? "This lobby expired because no one joined in time."
+              : "This room has been cleaned up.",
+        },
+        { status: 410 }
+      );
+    }
   }
 
   trackActivity({

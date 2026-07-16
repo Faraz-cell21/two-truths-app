@@ -8,6 +8,7 @@ import {
 import { serializeRound } from "@/lib/serializeRound";
 import type { ScoreDelta } from "@/types/game";
 import type { RevealSuccessResponse } from "@/types/api";
+import { finishedExpiresAt } from "@/lib/roomLifetime";
 
 /**
  * Shared reveal logic — called both by the /api/round/vote route (when
@@ -89,7 +90,12 @@ export async function performReveal(
     bulkOps.push({
       updateOne: {
         filter: { roomCode },
-        update: { $set: { status: "finished" } },
+        update: {
+          $set: {
+            status: "finished",
+            expiresAt: finishedExpiresAt(),
+          },
+        },
       },
     });
   } else {

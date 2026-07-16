@@ -8,6 +8,10 @@ import {
   PUSHER_EVENTS,
 } from "@/lib/pusher/server";
 import { trackActivity } from "@/lib/admin/trackActivity";
+import {
+  deleteRoomAndRounds,
+  finishedExpiresAt,
+} from "@/lib/roomLifetime";
 
 /**
  * POST /api/room/:code/leave
@@ -18,6 +22,7 @@ import { trackActivity } from "@/lib/admin/trackActivity";
  *
  * If the game is in progress and only 1 connected player remains, the
  * game is force-ended since 1-player games are not playable.
+ * Empty waiting lobbies are deleted immediately.
  */
 export async function POST(
   request: NextRequest,
@@ -84,6 +89,20 @@ export async function POST(
     playerCount: connectedPlayers.length,
   });
 
+  // Empty waiting lobby → delete forever (no point keeping a ghost room)
+  if (updated.status === "waiting" && connectedPlayers.length === 0) {
+    await deleteRoomAndRounds(roomCode);
+    trackActivity({
+      type: "leave",
+      request,
+      route: "/api/room/[code]/leave",
+      roomCode,
+      sessionId,
+      metadata: { deletedEmptyLobby: true },
+    });
+    return NextResponse.json({ success: true, deleted: true });
+  }
+
   // If the game is in progress and only 0-1 connected players remain,
   // force-end — you can't play alone.
   if (
@@ -92,7 +111,12 @@ export async function POST(
   ) {
     await RoomModel.updateOne(
       { roomCode },
-      { $set: { status: "finished" } }
+      {
+        $set: {
+          status: "finished",
+          expiresAt: finishedExpiresAt(),
+        },
+      }
     );
 
     const scores = serialized.players.map((p) => ({
@@ -100,9 +124,6 @@ export async function POST(
       displayName: p.displayName,
       score: p.score,
     }));
-
-    // Determine winner (if any) among remaining connected players
-    const highestScore = Math.max(...connectedPlayers.map((p) => p.score), 0);
 
     await pusherServer.trigger(channel, PUSHER_EVENTS.GAME_ENDED, {
       scores,

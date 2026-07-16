@@ -9,6 +9,8 @@ import {
   PUSHER_EVENTS,
 } from "@/lib/pusher/server";
 import { trackActivity } from "@/lib/admin/trackActivity";
+import { lobbyExpiresAt } from "@/lib/roomLifetime";
+import type { RoomMode } from "@/types/game";
 
 /**
  * POST /api/room/:code/play-again
@@ -65,6 +67,7 @@ export async function POST(
 
   const initiatorName = player.displayName;
   const channel = getRoomChannelName(roomCode);
+  const mode = (room.mode as RoomMode) ?? "private";
 
   // If room was already reset by someone else, mark this player as
   // connected (they accepted the invite) and notify the room.
@@ -73,7 +76,12 @@ export async function POST(
 
     await RoomModel.updateOne(
       { roomCode, "players.sessionId": sessionId },
-      { $set: { "players.$.connected": true } }
+      {
+        $set: {
+          "players.$.connected": true,
+          expiresAt: lobbyExpiresAt(mode),
+        },
+      }
     );
 
     if (wasDisconnected) {
@@ -84,12 +92,14 @@ export async function POST(
           players: serialized.players,
           playerCount: serialized.players.filter((p) => p.connected).length,
           targetSize: serialized.targetSize,
+          expiresAt: serialized.expiresAt,
         });
         return NextResponse.json({ room: serialized });
       }
     }
 
-    const serialized = serializeRoom(room);
+    const refreshed = await RoomModel.findOne({ roomCode }).lean();
+    const serialized = serializeRoom(refreshed ?? room);
     return NextResponse.json({ room: serialized });
   }
 
@@ -102,6 +112,7 @@ export async function POST(
         currentRound: 0,
         "players.$[].score": 0,
         "players.$[].connected": false,
+        expiresAt: lobbyExpiresAt(mode),
       },
     },
     { new: true }

@@ -31,9 +31,9 @@ const RoundSchema = new Schema(
   }
 );
 
-// TTL index: rounds clean themselves up automatically ~4 hours after
-// creation, same lifetime as their parent room.
-RoundSchema.index({ createdAt: 1 }, { expireAfterSeconds: 14400 });
+// TTL index: rounds clean themselves up automatically ~1 hour after
+// creation, matching the playing-room safety lifetime.
+RoundSchema.index({ createdAt: 1 }, { expireAfterSeconds: 3600 });
 
 RoundSchema.index({ roomCode: 1, roundNumber: 1 });
 

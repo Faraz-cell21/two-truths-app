@@ -9,12 +9,17 @@ import {
   PUSHER_EVENTS,
 } from "@/lib/pusher/server";
 import type { JoinRequestBody, JoinResponse } from "@/types/api";
-import type { Room, TargetSize } from "@/types/game";
+import type { Room, RoomMode, TargetSize } from "@/types/game";
 import { trackActivity } from "@/lib/admin/trackActivity";
 import { AVATAR_COLORS, nextUniqueAvatarColor } from "@/lib/avatarTokens";
+import {
+  deleteRoomAndRounds,
+  isExpired,
+  lobbyExpiresAt,
+  playingExpiresAt,
+} from "@/lib/roomLifetime";
 
 const VALID_TARGET_SIZES: TargetSize[] = [2, 3, 4, 5];
-const ROOM_LIFETIME_MS = 4 * 60 * 60 * 1000; // 4 hours
 const MAX_ROOM_CODE_ATTEMPTS = 5;
 
 /**
@@ -29,6 +34,7 @@ async function announceJoinAndMaybeStart(room: Room) {
     players: room.players,
     playerCount: room.players.length,
     targetSize: room.targetSize,
+    expiresAt: room.expiresAt,
   });
 
   if (room.players.length === room.targetSize && room.status === "playing") {
@@ -45,13 +51,16 @@ async function announceJoinAndMaybeStart(room: Room) {
  * can't both succeed and overfill the room.
  *
  * Avatar color is chosen from unused seat tokens so each player in the
- * room gets a unique color.
+ * room gets a unique color. Lobby idle expiry is refreshed on join;
+ * filling the room extends lifetime for an active game.
  */
 async function addPlayerToRoom(
   filter: Record<string, unknown>,
   sessionId: string,
-  displayName: string
+  displayName: string,
+  mode: RoomMode
 ) {
+  const now = new Date();
   const existing = await RoomModel.findOne({
     ...filter,
     "players.sessionId": { $ne: sessionId },
@@ -71,7 +80,7 @@ async function addPlayerToRoom(
     sessionId,
     displayName,
     avatarColor,
-    joinedAt: new Date(),
+    joinedAt: now,
     connected: true,
     score: 0,
   };
@@ -85,7 +94,10 @@ async function addPlayerToRoom(
 
   const updated = await RoomModel.findOneAndUpdate(
     fullFilter,
-    { $push: { players: newPlayer } },
+    {
+      $push: { players: newPlayer },
+      $set: { expiresAt: lobbyExpiresAt(mode, now) },
+    },
     { new: true }
   ).lean();
 
@@ -102,7 +114,13 @@ async function addPlayerToRoom(
         status: "waiting",
         $expr: { $eq: [{ $size: "$players" }, "$targetSize"] },
       },
-      { $set: { status: "playing", currentRound: 1 } },
+      {
+        $set: {
+          status: "playing",
+          currentRound: 1,
+          expiresAt: playingExpiresAt(now),
+        },
+      },
       { new: true }
     ).lean();
 
@@ -168,7 +186,6 @@ export async function POST(
   );
 
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + ROOM_LIFETIME_MS);
 
   // ---- Action: random matchmaking ----
   if (action === "random") {
@@ -186,10 +203,12 @@ export async function POST(
         mode: "random",
         targetSize,
         status: "waiting",
+        expiresAt: { $gt: now },
         $expr: { $lt: [{ $size: "$players" }, targetSize] },
       },
       sessionId,
-      trimmedName
+      trimmedName,
+      "random"
     );
 
     if (joined) {
@@ -225,7 +244,7 @@ export async function POST(
       currentRound: 0,
       players: [firstPlayer(sessionId, trimmedName, now)],
       createdAt: now,
-      expiresAt,
+      expiresAt: lobbyExpiresAt("random", now),
     });
 
     const room = serializeRoom(created.toObject());
@@ -263,7 +282,7 @@ export async function POST(
           currentRound: 0,
           players: [firstPlayer(sessionId, trimmedName, now)],
           createdAt: now,
-          expiresAt,
+          expiresAt: lobbyExpiresAt("private", now),
         });
         break;
       } catch (err: unknown) {
@@ -312,6 +331,17 @@ export async function POST(
       );
     }
 
+    if (
+      existingRoom.status === "waiting" &&
+      isExpired(existingRoom.expiresAt as Date, now)
+    ) {
+      await deleteRoomAndRounds(roomCode);
+      return NextResponse.json(
+        { error: "This lobby expired. Create a new room." },
+        { status: 410 }
+      );
+    }
+
     if (existingRoom.status !== "waiting") {
       return NextResponse.json(
         { error: "This game has already started or finished." },
@@ -323,10 +353,12 @@ export async function POST(
       {
         roomCode,
         status: "waiting",
+        expiresAt: { $gt: now },
         $expr: { $lt: [{ $size: "$players" }, "$targetSize"] },
       },
       sessionId,
-      trimmedName
+      trimmedName,
+      "private"
     );
 
     if (!joined) {

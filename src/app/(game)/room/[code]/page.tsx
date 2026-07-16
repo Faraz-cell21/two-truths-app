@@ -92,7 +92,12 @@ export default function LobbyPage() {
         if (!res.ok || "error" in json) {
           setState({
             phase: "error",
-            message: "error" in json ? json.error : "Failed to load room.",
+            message:
+              res.status === 410
+                ? "This lobby expired because no one joined in time."
+                : "error" in json
+                  ? json.error
+                  : "Failed to load room.",
           });
           return;
         }
@@ -133,6 +138,7 @@ export default function LobbyPage() {
       players: Player[];
       playerCount: number;
       targetSize: number;
+      expiresAt?: string;
     }) => {
       setState((prev) => {
         if (prev.phase !== "active") return prev;
@@ -141,6 +147,7 @@ export default function LobbyPage() {
           room: {
             ...prev.room,
             players: data.players,
+            ...(data.expiresAt ? { expiresAt: data.expiresAt } : {}),
           },
         };
       });
@@ -231,6 +238,51 @@ export default function LobbyPage() {
     });
   }, [state.phase, roomCode, state]);
 
+  /* ---- Lobby idle countdown / expiry ---- */
+  const [lobbySecondsLeft, setLobbySecondsLeft] = useState<number | null>(null);
+  const lobbyExpiresAtIso =
+    state.phase === "active" ? state.room.expiresAt : null;
+
+  useEffect(() => {
+    if (state.phase !== "active" || !lobbyExpiresAtIso) {
+      setLobbySecondsLeft(null);
+      return;
+    }
+
+    const expiresMs = Date.parse(lobbyExpiresAtIso);
+    if (!Number.isFinite(expiresMs)) return;
+
+    let cancelled = false;
+
+    const tick = async () => {
+      const remaining = Math.max(0, Math.ceil((expiresMs - Date.now()) / 1000));
+      if (cancelled) return;
+      setLobbySecondsLeft(remaining);
+
+      if (remaining <= 0) {
+        clearStoredRoomCode();
+        try {
+          await fetch(`/api/room/${encodeURIComponent(roomCode)}`);
+        } catch {
+          // Best-effort server delete via GET expiry check
+        }
+        if (!cancelled) {
+          setState({
+            phase: "error",
+            message: "This lobby expired because no one joined in time.",
+          });
+        }
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [state.phase, lobbyExpiresAtIso, roomCode]);
+
   const lobbyScenePhase =
     state.phase === "loading"
       ? "loading"
@@ -266,10 +318,11 @@ export default function LobbyPage() {
 
   /* ---- Error ---- */
   if (state.phase === "error") {
+    const expired = state.message.toLowerCase().includes("expired");
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-4 text-center">
         <h1 className="font-serif text-3xl font-bold text-warm">
-          Case file not found
+          {expired ? "Lobby expired" : "Case file not found"}
         </h1>
         <hr className="polygraph-line max-w-xs" />
         <p className="text-muted">{state.message}</p>
@@ -327,6 +380,17 @@ export default function LobbyPage() {
               ? "Statements incoming. Prepare your interrogation."
               : `${playerCount} of ${room.targetSize} detectives present. Waiting for the rest.`}
           </p>
+          {!isStarting && lobbySecondsLeft !== null && (
+            <p
+              className={
+                "font-mono text-xs tabular-nums tracking-wide " +
+                (lobbySecondsLeft <= 60 ? "text-lie" : "text-muted")
+              }
+            >
+              Lobby closes in {Math.floor(lobbySecondsLeft / 60)}:
+              {String(lobbySecondsLeft % 60).padStart(2, "0")}
+            </p>
+          )}
         </header>
 
         {/* ---- Room code ---- */}

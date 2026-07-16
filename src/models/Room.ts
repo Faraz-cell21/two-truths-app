@@ -26,8 +26,9 @@ const RoomSchema = new Schema(
     currentRound: { type: Number, required: true, default: 0 },
     players: { type: [PlayerSchema], required: true, default: [] },
     createdAt: { type: Date, required: true, default: Date.now },
-    // TTL field — MongoDB will automatically delete this document once
-    // this timestamp is in the past. Set at creation time, e.g. now + 4hrs.
+    // TTL field — MongoDB deletes the document once this timestamp is past.
+    // Waiting lobbies use a short idle window (5m random / 10m private).
+    // Playing rooms get ~1h; finished rooms get ~30m for play-again.
     expiresAt: { type: Date, required: true },
   },
   {

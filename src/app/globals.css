@@ -29,7 +29,9 @@
   --theme-truth: #0057e7;
   --theme-lie: #d6006e;
   --theme-warm: #000000;
-  --theme-muted: #1c1c1c;
+  /* Secondary text must stay WCAG-AA on white cards + pale ink bg.
+     Avoid mid-grays (#8b847a / #767c94) — they wash out on light surfaces. */
+  --theme-muted: #2f3b52;
   --theme-glow: rgba(0, 87, 231, 0.35);
 }
 
@@ -54,6 +56,19 @@
     monospace;
 
   --animate-polygraph: polygraph-pulse 2s ease-in-out infinite;
+}
+
+/* Light-mode: keep faded muted utilities readable (avoid ghost-gray text) */
+[data-theme="light"] .text-muted\/85,
+[data-theme="light"] .text-muted\/70,
+[data-theme="light"] .text-muted\/60 {
+  color: color-mix(in srgb, var(--theme-muted) 92%, var(--theme-warm));
+}
+
+[data-theme="light"] .placeholder\:text-muted\/70::placeholder,
+[data-theme="light"] .placeholder\:text-muted\/50::placeholder,
+[data-theme="light"] .placeholder\:text-muted::placeholder {
+  color: color-mix(in srgb, var(--theme-muted) 80%, transparent);
 }
 
 html {

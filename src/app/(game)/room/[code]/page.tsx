@@ -323,7 +323,7 @@ export default function LobbyPage() {
 
         {/* ---- Room code ---- */}
         <div className="text-center space-y-2">
-          <p className="text-xs uppercase tracking-[0.3em] text-muted">
+          <p className="text-xs uppercase tracking-[0.3em] text-warm/80">
             Case file #
           </p>
           <div className="inline-flex items-center gap-2.5">
@@ -344,7 +344,7 @@ export default function LobbyPage() {
 
         {/* ---- Player slots ---- */}
         <section className="space-y-3">
-          <h2 className="text-xs uppercase tracking-[0.3em] text-muted">
+          <h2 className="text-xs uppercase tracking-[0.3em] text-warm/80">
             Subjects present
           </h2>
           <div className="space-y-3">

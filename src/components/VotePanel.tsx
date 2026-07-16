@@ -100,6 +100,77 @@ export default function VotePanel({
   const timerColor =
     timer <= 5 ? "var(--color-lie)" : timer <= 15 ? "#e8a850" : "var(--color-truth)";
 
+  // Submitter waits while others vote — don't show the accusation UI yet.
+  if (isSubmitter && !showResults) {
+    return (
+      <div className="interrogation-card relative overflow-hidden space-y-5">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-45"
+          aria-hidden="true"
+          style={{
+            background:
+              "radial-gradient(ellipse 75% 55% at 50% 0%, color-mix(in srgb, var(--theme-truth) 18%, transparent), transparent 70%)",
+          }}
+        />
+
+        <div className="relative space-y-5 text-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="awaiting-avatar-pulse">
+              <PlayerAvatar
+                displayName={submittedBy}
+                avatarColor={submittedByAvatarColor}
+                index={submittedByIndex}
+                size="lg"
+              />
+            </div>
+            <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-muted">
+              Your statements are in
+            </p>
+            <h2 className="font-serif text-xl font-semibold text-warm">
+              Waiting for votes…
+            </h2>
+            <p className="max-w-xs text-sm text-muted">
+              The others are picking which statement is the lie.
+            </p>
+          </div>
+
+          <hr className="polygraph-line !my-0" />
+
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              {Array.from({ length: Math.max(eligibleVoters, 1) }).map((_, i) => (
+                <span
+                  key={i}
+                  className={
+                    "h-2 w-8 rounded-full transition-all duration-500 " +
+                    (i < votesCast ? "bg-truth" : "bg-border/80")
+                  }
+                />
+              ))}
+            </div>
+            <p className="font-mono text-xs tabular-nums tracking-wide text-muted">
+              {votesCast} of {eligibleVoters}{" "}
+              {eligibleVoters === 1 ? "vote" : "votes"} in
+            </p>
+          </div>
+
+          <div className="flex justify-center gap-1.5" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="inline-block h-1.5 w-1.5 rounded-full bg-truth/70"
+                style={{
+                  animation: "awaiting-dot 1.1s ease-in-out infinite",
+                  animationDelay: `${i * 0.15}s`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const headline = showResults
     ? isSubmitter
       ? "Results"
@@ -230,10 +301,6 @@ export default function VotePanel({
                 {timer}
               </span>
             </div>
-          )}
-
-          {isSubmitter && !showResults && (
-            <p className="text-sm text-muted">Waiting for everyone to vote…</p>
           )}
 
           {/* Compact vote seats */}

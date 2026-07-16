@@ -182,7 +182,7 @@ export default function HomePage() {
             <span className="text-lie/90">&amp; a Lie</span>
           </h1>
           <hr className="polygraph-line" />
-          <p className="text-sm text-muted">
+          <p className="text-sm font-bold">
             One player lies. Everyone else detects.
           </p>
         </header>
@@ -218,7 +218,7 @@ export default function HomePage() {
 
         {/* ---- Display name ---- */}
         <section className="interrogation-card space-y-3">
-          <label className="block text-sm font-medium text-muted uppercase tracking-widest">
+          <label className="block text-sm font-semibold uppercase tracking-widest text-warm">
             Your alias
           </label>
           <input
@@ -230,7 +230,7 @@ export default function HomePage() {
               if (state.phase === "error") setState({ phase: "idle" });
             }}
             placeholder="Detective…"
-            className="w-full rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm text-warm placeholder:text-muted/70 focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
+            className="w-full rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm text-warm placeholder:text-muted focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
             disabled={isLoading}
           />
           {state.phase === "error" && (
@@ -338,7 +338,7 @@ export default function HomePage() {
                 }}
                 placeholder="BLUE-FOX-42"
                 maxLength={14}
-                className="flex-1 rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm uppercase text-warm placeholder:text-muted/70 focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
+                className="flex-1 rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm uppercase text-warm placeholder:text-muted focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
                 disabled={isLoading}
               />
               <button
@@ -354,7 +354,7 @@ export default function HomePage() {
 
         {/* ---- How to Play ---- */}
         <details className="interrogation-card cursor-pointer group">
-          <summary className="text-sm font-medium text-muted uppercase tracking-widest list-none flex items-center justify-between">
+          <summary className="text-sm font-semibold uppercase tracking-widest text-warm list-none flex items-center justify-between">
             How to play
             <span className="text-muted text-xs transition-transform group-open:rotate-180">
               ▼

@@ -300,7 +300,7 @@ export default function LobbyPage() {
         <button
           type="button"
           onClick={handleLeave}
-          className="rounded-lg border border-[#e11d48]/50 bg-[#e11d48]/10 px-3 py-1.5 text-xs font-medium text-[#e11d48] transition-colors hover:bg-[#e11d48]/20"
+          className="leave-action"
           title="Leave lobby"
         >
           Leave lobby

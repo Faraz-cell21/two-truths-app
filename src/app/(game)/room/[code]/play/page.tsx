@@ -941,7 +941,15 @@ export default function PlayPage() {
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-start px-4 py-12">
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleLeave}
+          className="rounded-lg border border-[#e11d48]/50 bg-[#e11d48]/10 px-3 py-1.5 text-xs font-medium text-[#e11d48] transition-colors hover:bg-[#e11d48]/20"
+          title="Leave game"
+        >
+          Leave game
+        </button>
         <ThemeSwitcher />
       </div>
 
@@ -1145,16 +1153,6 @@ export default function PlayPage() {
             />
           </div>
         )}
-
-        {/* ---- Leave button ---- */}
-        <div className="text-center pt-2">
-          <button
-            onClick={handleLeave}
-            className="rounded-lg bg-[#e11d48] px-5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
-          >
-            Leave game
-          </button>
-        </div>
       </div>
     </main>
   );

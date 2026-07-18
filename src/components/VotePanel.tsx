@@ -194,7 +194,9 @@ export default function VotePanel({
           ? "Correct!"
           : "Wrong guess"
         : "Which one is the lie?"
-    : "Which one is the lie?";
+    : hasVoted || isSubmitter
+      ? "Waiting for votes…"
+      : "Which one is the lie?";
 
   const getStatementStyle = (index: number) => {
     if (!showResults || lieIndex === null) {

@@ -374,25 +374,17 @@ export default function PlayPage() {
       });
     };
 
-    /* ---- VOTE_CAST ---- */
+    /* ---- VOTE_CAST ----
+       Presence only — never includes lieIndex / isCorrect.
+       Submitters already know the lie and can score votes locally;
+       everyone else waits for ROUND_REVEALED. */
     const handleVoteCast = (data: {
       sessionId: string;
       votedIndex: 0 | 1 | 2;
-      isCorrect: boolean;
-      correctIndex: 0 | 1 | 2;
       votes: Vote[];
       votesRemaining: number;
     }) => {
       setState((prev) => {
-        const newResult = buildVoteResult(
-          prev.phase === "vote" || prev.phase === "awaiting_votes"
-            ? prev.room
-            : ({} as Room),
-          data.sessionId,
-          data.votedIndex,
-          data.isCorrect
-        );
-
         if (prev.phase === "vote") {
           if (data.sessionId === prev.sessionId) {
             return {
@@ -403,8 +395,8 @@ export default function PlayPage() {
               votes: data.votes,
               playerCount: prev.room.players.length,
               votedIndex: data.votedIndex,
-              lieIndex: data.correctIndex,
-              voteResults: [newResult],
+              lieIndex: null,
+              voteResults: [],
               isSubmitter: false,
               allVotesIn: data.votesRemaining === 0,
               pendingReveal: null,
@@ -418,14 +410,26 @@ export default function PlayPage() {
           } as PlayState;
         }
         if (prev.phase === "awaiting_votes") {
-          const existing = prev.voteResults.filter(
-            (r) => r.sessionId !== data.sessionId
-          );
+          // Submitter knows the lie — show live correctness as votes arrive.
+          // Non-submitters only track vote counts until ROUND_REVEALED.
+          if (prev.isSubmitter && prev.lieIndex !== null) {
+            return {
+              ...prev,
+              votes: data.votes,
+              voteResults: data.votes.map((v) =>
+                buildVoteResult(
+                  prev.room,
+                  v.sessionId,
+                  v.votedIndex,
+                  v.votedIndex === prev.lieIndex
+                )
+              ),
+              allVotesIn: prev.allVotesIn || data.votesRemaining === 0,
+            } as PlayState;
+          }
           return {
             ...prev,
             votes: data.votes,
-            lieIndex: data.correctIndex,
-            voteResults: [...existing, newResult],
             allVotesIn: prev.allVotesIn || data.votesRemaining === 0,
           } as PlayState;
         }
@@ -456,6 +460,16 @@ export default function PlayPage() {
           return {
             ...prev,
             room,
+            votes: data.round.votes,
+            lieIndex: data.round.lieIndex,
+            voteResults: data.round.votes.map((v) =>
+              buildVoteResult(
+                room,
+                v.sessionId,
+                v.votedIndex,
+                v.votedIndex === data.round.lieIndex
+              )
+            ),
             allVotesIn: true,
             pendingReveal: {
               round: data.round,
@@ -757,13 +771,7 @@ export default function PlayPage() {
         throw new Error("error" in json ? json.error : "Vote failed");
       }
 
-      const result = buildVoteResult(
-        state.room,
-        state.sessionId,
-        votedIndex,
-        json.isCorrect
-      );
-
+      // Answer stays hidden until ROUND_REVEALED (all votes in or timer).
       setState((prev) => {
         if (prev.phase === "awaiting_votes") return prev;
         if (prev.phase !== "vote") return prev;
@@ -775,8 +783,8 @@ export default function PlayPage() {
           votes: json.vote ? [json.vote] : [],
           playerCount: prev.room.players.length,
           votedIndex,
-          lieIndex: json.correctIndex,
-          voteResults: [result],
+          lieIndex: null,
+          voteResults: [],
           isSubmitter: false,
           allVotesIn: json.votesRemaining === 0,
           pendingReveal: null,
@@ -784,7 +792,7 @@ export default function PlayPage() {
         };
       });
     },
-    [state, roomCode, buildVoteResult]
+    [state, roomCode]
   );
 
   const handleContinueFromResults = useCallback(() => {

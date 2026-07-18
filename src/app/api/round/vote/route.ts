@@ -102,8 +102,6 @@ export async function POST(
   }
 
   const vote: Vote = { sessionId, votedIndex };
-  const isCorrect = votedIndex === round.lieIndex;
-  const correctIndex = round.lieIndex as 0 | 1 | 2;
   // Only count connected non-submitter players — disconnected players
   // don't block the auto-reveal from firing.
   const eligibleVoters = room.players.filter(
@@ -112,13 +110,11 @@ export async function POST(
   ).length;
   const votesRemaining = eligibleVoters - updated.votes.length;
 
-  // ---- Notify room of the vote ----
+  // ---- Notify room of the vote (no answer fields — those wait for reveal) ----
   const channel = getRoomChannelName(roomCode);
   await pusherServer.trigger(channel, PUSHER_EVENTS.VOTE_CAST, {
     sessionId,
     votedIndex,
-    isCorrect,
-    correctIndex,
     votes: updated.votes,
     votesRemaining,
   });
@@ -129,10 +125,14 @@ export async function POST(
     route: "/api/round/vote",
     roomCode,
     sessionId,
-    metadata: { roundNumber, isCorrect },
+    metadata: {
+      roundNumber,
+      isCorrect: votedIndex === round.lieIndex,
+    },
   });
 
   // ---- Auto-reveal if all votes are in ----
+  // Answer (lieIndex / correctness) is delivered only via ROUND_REVEALED.
   if (votesRemaining === 0) {
     const revealResult = await performReveal(roomCode, roundNumber);
     if ("error" in revealResult) {
@@ -149,14 +149,8 @@ export async function POST(
       sessionId,
       metadata: { roundNumber, source: "auto_reveal" },
     });
-    // Return vote success + the full reveal payload
-    return NextResponse.json({
-      vote,
-      votesRemaining: 0,
-      isCorrect,
-      correctIndex,
-    } as VoteResponse);
+    return NextResponse.json({ vote, votesRemaining: 0 });
   }
 
-  return NextResponse.json({ vote, votesRemaining, isCorrect, correctIndex });
+  return NextResponse.json({ vote, votesRemaining });
 }

@@ -49,7 +49,11 @@ export default function LobbyPage() {
       await fetch(`/api/room/${encodeURIComponent(roomCode)}/leave`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: sid }),
+        body: JSON.stringify({
+          sessionId: sid,
+          disconnectedAt: Date.now(),
+          reason: "explicit",
+        }),
       });
     } catch {
       // Best-effort — navigate away regardless
@@ -64,9 +68,19 @@ export default function LobbyPage() {
     sessionIdRef.current = sid;
 
     const handleBeforeUnload = () => {
+      const payload = new Blob(
+        [
+          JSON.stringify({
+            sessionId: sid,
+            disconnectedAt: Date.now(),
+            reason: "unload",
+          }),
+        ],
+        { type: "application/json" }
+      );
       navigator.sendBeacon(
         `/api/room/${encodeURIComponent(roomCode)}/leave`,
-        JSON.stringify({ sessionId: sid })
+        payload
       );
     };
     window.addEventListener("beforeunload", handleBeforeUnload);

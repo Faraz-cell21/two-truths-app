@@ -4,6 +4,7 @@ import { RoomModel } from "@/models/Room";
 import { RoundModel } from "@/models/Round";
 import { serializeRound, serializeRoundPublicView } from "@/lib/serializeRound";
 import { computeScoreDeltas } from "@/lib/revealRound";
+import { revealIfVoteDeadlinePassed } from "@/lib/reconcileVoteDeadline";
 import type { RoundGetResponse } from "@/types/api";
 import { trackActivity } from "@/lib/admin/trackActivity";
 
@@ -15,6 +16,8 @@ import { trackActivity } from "@/lib/admin/trackActivity";
  *   - Already revealed → full Round + score deltas (everyone can see)
  *   - Not revealed + requestor is submitter → full Round
  *   - Not revealed + requestor is not submitter → RoundPublicView
+ *
+ * Also reconciles an expired voteDeadline into a reveal when needed.
  */
 export async function GET(
   request: NextRequest,
@@ -36,13 +39,26 @@ export async function GET(
 
   await connectToDatabase();
 
-  // Fetch round
-  const round = await RoundModel.findOne({ roomCode, roundNumber }).lean();
+  let round = await RoundModel.findOne({ roomCode, roundNumber }).lean();
   if (!round) {
     return NextResponse.json({ error: "Round not found." }, { status: 404 });
   }
 
-  // Fetch room (needed for score deltas display names)
+  // Lazy reveal if the client reconnects after the voting window.
+  if (!round.revealedAt) {
+    const reconciled = await revealIfVoteDeadlinePassed(
+      roomCode,
+      roundNumber,
+      round
+    );
+    if (reconciled) {
+      round = await RoundModel.findOne({ roomCode, roundNumber }).lean();
+      if (!round) {
+        return NextResponse.json({ error: "Round not found." }, { status: 404 });
+      }
+    }
+  }
+
   const room = await RoomModel.findOne({ roomCode }).lean();
   const totalRounds = room ? room.players.length : 0;
   const gameEnded = roundNumber >= totalRounds;
@@ -56,7 +72,6 @@ export async function GET(
     metadata: { roundNumber },
   });
 
-  // Case 1: Already revealed → return full round + deltas
   if (round.revealedAt) {
     const scoreDeltas = computeScoreDeltas(round, room?.players ?? []);
     return NextResponse.json({
@@ -66,7 +81,6 @@ export async function GET(
     } satisfies RoundGetResponse);
   }
 
-  // Case 2: Not revealed, requestor is the submitter → full round
   if (sessionId && sessionId === round.submittedBy) {
     return NextResponse.json({
       round: serializeRound(round),
@@ -75,7 +89,6 @@ export async function GET(
     } satisfies RoundGetResponse);
   }
 
-  // Case 3: Not revealed, requestor is NOT the submitter → public view
   return NextResponse.json({
     round: serializeRoundPublicView(round),
     scoreDeltas: null,

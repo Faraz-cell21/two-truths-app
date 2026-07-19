@@ -3,6 +3,8 @@ import { connectToDatabase } from "@/lib/db/mongodb";
 import { RoomModel } from "@/models/Room";
 import { RoundModel } from "@/models/Round";
 import { performReveal } from "@/lib/revealRound";
+import { revealIfVoteDeadlinePassed } from "@/lib/reconcileVoteDeadline";
+import { isVoteDeadlinePassed, VOTE_DURATION_MS } from "@/lib/gameTiming";
 import {
   pusherServer,
   getRoomChannelName,
@@ -17,7 +19,7 @@ import { trackActivity } from "@/lib/admin/trackActivity";
  *
  * A non-submitter player casts their vote for which statement they
  * believe is the lie. If this vote is the last one needed, the round
- * is auto-revealed inline.
+ * is auto-revealed inline. Votes after the server voteDeadline are rejected.
  */
 export async function POST(
   request: NextRequest
@@ -31,7 +33,6 @@ export async function POST(
 
   const { roomCode, roundNumber, sessionId, votedIndex } = body;
 
-  // ---- Validate ----
   if (!roomCode || !sessionId || roundNumber == null) {
     return NextResponse.json(
       { error: "Missing roomCode, roundNumber, or sessionId." },
@@ -48,7 +49,6 @@ export async function POST(
 
   await connectToDatabase();
 
-  // ---- Fetch round & room ----
   const round = await RoundModel.findOne({ roomCode, roundNumber }).lean();
   if (!round) {
     return NextResponse.json({ error: "Round not found." }, { status: 404 });
@@ -59,6 +59,16 @@ export async function POST(
       { status: 409 }
     );
   }
+
+  const reconciled = await revealIfVoteDeadlinePassed(
+    roomCode,
+    roundNumber,
+    round
+  );
+  if (reconciled) {
+    return NextResponse.json({ error: "Voting has ended." }, { status: 409 });
+  }
+
   if (round.submittedBy === sessionId) {
     return NextResponse.json(
       { error: "The submitter cannot vote on their own round." },
@@ -80,21 +90,33 @@ export async function POST(
     );
   }
 
-  // ---- Atomic vote push ----
+  const now = new Date();
+  const openFilter: Record<string, unknown> = {
+    _id: round._id,
+    revealedAt: null,
+    "votes.sessionId": { $ne: sessionId },
+  };
+  if (round.voteDeadline) {
+    openFilter.voteDeadline = { $gt: now };
+  } else {
+    // Legacy rounds without voteDeadline — use createdAt + duration.
+    openFilter.createdAt = {
+      $gt: new Date(now.getTime() - VOTE_DURATION_MS),
+    };
+  }
+
   const updated = await RoundModel.findOneAndUpdate(
-    {
-      _id: round._id,
-      "votes.sessionId": { $ne: sessionId },
-    },
-    {
-      $push: {
-        votes: { sessionId, votedIndex },
-      },
-    },
+    openFilter,
+    { $push: { votes: { sessionId, votedIndex } } },
     { new: true }
   ).lean();
 
   if (!updated) {
+    const latest = await RoundModel.findById(round._id).lean();
+    if (latest && (latest.revealedAt || isVoteDeadlinePassed(latest, now))) {
+      await revealIfVoteDeadlinePassed(roomCode, roundNumber, latest);
+      return NextResponse.json({ error: "Voting has ended." }, { status: 409 });
+    }
     return NextResponse.json(
       { error: "You have already voted this round." },
       { status: 409 }
@@ -102,15 +124,12 @@ export async function POST(
   }
 
   const vote: Vote = { sessionId, votedIndex };
-  // Only count connected non-submitter players — disconnected players
-  // don't block the auto-reveal from firing.
   const eligibleVoters = room.players.filter(
     (p: { sessionId: string; connected: boolean }) =>
       p.sessionId !== round.submittedBy && p.connected
   ).length;
   const votesRemaining = eligibleVoters - updated.votes.length;
 
-  // ---- Notify room of the vote (no answer fields — those wait for reveal) ----
   const channel = getRoomChannelName(roomCode);
   await pusherServer.trigger(channel, PUSHER_EVENTS.VOTE_CAST, {
     sessionId,
@@ -131,8 +150,6 @@ export async function POST(
     },
   });
 
-  // ---- Auto-reveal if all votes are in ----
-  // Answer (lieIndex / correctness) is delivered only via ROUND_REVEALED.
   if (votesRemaining === 0) {
     const revealResult = await performReveal(roomCode, roundNumber);
     if ("error" in revealResult) {

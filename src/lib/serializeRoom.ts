@@ -22,6 +22,7 @@ export interface LeanRoomDocument {
   }>;
   createdAt: Date;
   expiresAt: Date;
+  abandonDeadline?: Date | null;
 }
 
 /**

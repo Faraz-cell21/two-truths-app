@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/lib/db/mongodb";
 import { RoomModel } from "@/models/Room";
 import { RoundModel } from "@/models/Round";
 import { serializeRoundPublicView } from "@/lib/serializeRound";
+import { computeVoteDeadline } from "@/lib/gameTiming";
 import {
   pusherServer,
   getRoomChannelName,
@@ -91,6 +92,9 @@ export async function POST(
     );
   }
 
+  const now = new Date();
+  const voteDeadline = computeVoteDeadline(now);
+
   // ---- Create round (idempotent via unique compound index) ----
   let round;
   try {
@@ -101,8 +105,9 @@ export async function POST(
       statements: statements.map((s) => s.trim()) as [string, string, string],
       lieIndex,
       votes: [],
+      voteDeadline,
       revealedAt: null,
-      createdAt: new Date(),
+      createdAt: now,
     });
   } catch (err: unknown) {
     const isDuplicate =

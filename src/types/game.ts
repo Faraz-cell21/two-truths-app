@@ -35,6 +35,8 @@ export interface Round {
   statements: [string, string, string];
   lieIndex: 0 | 1 | 2;
   votes: Vote[];
+  /** ISO timestamp — voting closes at this server-authored deadline. */
+  voteDeadline: string;
   revealedAt: string | null;
   createdAt: string;
 }
@@ -49,6 +51,7 @@ export interface RoundPublicView {
   submittedBy: string;
   statements: [string, string, string];
   votes: Vote[];
+  voteDeadline: string;
   revealedAt: string | null;
 }
 

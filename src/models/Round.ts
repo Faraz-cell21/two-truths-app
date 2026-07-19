@@ -23,6 +23,8 @@ const RoundSchema = new Schema(
     },
     lieIndex: { type: Number, enum: [0, 1, 2], required: true },
     votes: { type: [VoteSchema], required: true, default: [] },
+    /** Server clock when voting closes; clients countdown against this. */
+    voteDeadline: { type: Date, required: false },
     revealedAt: { type: Date, default: null },
     createdAt: { type: Date, required: true, default: Date.now },
   },

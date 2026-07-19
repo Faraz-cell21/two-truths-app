@@ -82,6 +82,7 @@ async function addPlayerToRoom(
     avatarColor,
     joinedAt: now,
     connected: true,
+    lastSeenAt: now,
     score: 0,
   };
 
@@ -143,6 +144,7 @@ function firstPlayer(
     avatarColor: AVATAR_COLORS[0],
     joinedAt: now,
     connected: true,
+    lastSeenAt: now,
     score: 0,
   };
 }

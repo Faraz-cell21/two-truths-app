@@ -7,6 +7,8 @@ const PlayerSchema = new Schema(
     avatarColor: { type: String, required: false },
     joinedAt: { type: Date, required: true, default: Date.now },
     connected: { type: Boolean, required: true, default: true },
+    /** Updated on join/rejoin — used to ignore stale leave beacons after refresh. */
+    lastSeenAt: { type: Date, required: false },
     score: { type: Number, required: true, default: 0 },
   },
   { _id: false }
@@ -30,6 +32,11 @@ const RoomSchema = new Schema(
     // Waiting lobbies use a short idle window (5m random / 10m private).
     // Playing rooms get ~1h; finished rooms get ~30m for play-again.
     expiresAt: { type: Date, required: true },
+    /**
+     * When connected players drop below 2 mid-game, we schedule a force-end
+     * at this time so a quick refresh doesn't kill the room.
+     */
+    abandonDeadline: { type: Date, default: null },
   },
   {
     timestamps: false,

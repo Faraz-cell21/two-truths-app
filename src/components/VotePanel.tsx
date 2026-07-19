@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Vote } from "@/types/game";
 import PlayerAvatar from "@/components/PlayerAvatar";
+import { VOTE_DURATION_MS } from "@/lib/gameTiming";
 
 /* ===================================================================
    VotePanel — pick which statement is the lie.
@@ -30,13 +31,22 @@ interface VotePanelProps {
   isSubmitter?: boolean;
   showContinue?: boolean;
   onContinue?: () => void;
-  /** Fired once when the 30s vote timer reaches 0 (triggers reveal). */
+  /** Server-authored ISO deadline — countdown is derived from wall clock. */
+  voteDeadline?: string | null;
+  /** Fired once when the vote deadline is reached (triggers reveal). */
   onTimeout?: () => void;
 }
 
-const TIMER_SECONDS = 30;
+const TIMER_SECONDS = VOTE_DURATION_MS / 1000;
 const CIRCLE_RADIUS = 34;
 const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
+
+function secondsUntil(deadlineIso: string | null | undefined): number {
+  if (!deadlineIso) return TIMER_SECONDS;
+  const ms = Date.parse(deadlineIso) - Date.now();
+  if (!Number.isFinite(ms)) return TIMER_SECONDS;
+  return Math.max(0, Math.ceil(ms / 1000));
+}
 
 export default function VotePanel({
   statements,
@@ -53,44 +63,41 @@ export default function VotePanel({
   isSubmitter = false,
   showContinue = false,
   onContinue,
+  voteDeadline = null,
   onTimeout,
 }: VotePanelProps) {
-  const [timer, setTimer] = useState(TIMER_SECONDS);
+  const [timer, setTimer] = useState(() => secondsUntil(voteDeadline));
   const [voting, setVoting] = useState(false);
   const [pressed, setPressed] = useState<number | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutFiredRef = useRef(false);
 
-  const showResults = lieIndex !== null && voteResults.length > 0;
+  const showResults =
+    lieIndex !== null && (voteResults.length > 0 || showContinue);
   const urgent = !hasVoted && !isSubmitter && timer <= 5;
   const timeExpired = timer === 0 && !showResults;
 
+  // Recalculate remaining time from the server deadline (survives refresh).
+  // Any connected client can fire onTimeout — including voters who already cast.
   useEffect(() => {
-    // Only voters who already cast stop the clock. Submitters (and anyone
-    // still deciding) must keep counting down so timeout can force-reveal.
-    if (hasVoted) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
-    intervalRef.current = setInterval(() => {
-      setTimer((prev) => {
-        if (prev <= 1) {
-          if (intervalRef.current) clearInterval(intervalRef.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [hasVoted]);
+    timeoutFiredRef.current = false;
+  }, [voteDeadline]);
 
   useEffect(() => {
-    if (timer !== 0 || !onTimeout || timeoutFiredRef.current) return;
-    timeoutFiredRef.current = true;
-    onTimeout();
-  }, [timer, onTimeout]);
+    if (showResults) return;
+
+    const tick = () => {
+      const remaining = secondsUntil(voteDeadline);
+      setTimer(remaining);
+      if (remaining === 0 && onTimeout && !timeoutFiredRef.current) {
+        timeoutFiredRef.current = true;
+        onTimeout();
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [voteDeadline, showResults, onTimeout]);
 
   const handleVote = async (index: 0 | 1 | 2) => {
     if (hasVoted || voting || isSubmitter || timeExpired) return;
@@ -108,12 +115,12 @@ export default function VotePanel({
   const eligibleVoters = Math.max(playerCount - 1, 0);
   const votesCast = votes.length;
 
-  const timerPct = timer / TIMER_SECONDS;
+  const timerPct = Math.min(1, Math.max(0, timer / TIMER_SECONDS));
   const strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - timerPct);
   const timerColor =
     timer <= 5 ? "var(--color-lie)" : timer <= 15 ? "#e8a850" : "var(--color-truth)";
 
-  // Submitter waits while others vote — don't show the accusation UI yet.
+  // Submitter waits while others vote — don't block once results/continue are ready.
   if (isSubmitter && !showResults) {
     return (
       <div className="interrogation-card relative overflow-hidden space-y-5">

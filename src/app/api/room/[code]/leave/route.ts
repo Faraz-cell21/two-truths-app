@@ -8,21 +8,22 @@ import {
   PUSHER_EVENTS,
 } from "@/lib/pusher/server";
 import { trackActivity } from "@/lib/admin/trackActivity";
+import { deleteRoomAndRounds } from "@/lib/roomLifetime";
+import { RECONNECT_GRACE_MS } from "@/lib/gameTiming";
 import {
-  deleteRoomAndRounds,
-  finishedExpiresAt,
-} from "@/lib/roomLifetime";
+  endGameIfAlone,
+  reconcileAbandonedRoom,
+} from "@/lib/reconcileAbandonedRoom";
+import { revealIfVotingComplete } from "@/lib/revealIfVotingComplete";
 
 /**
  * POST /api/room/:code/leave
  *
- * Marks a player as disconnected. Called on tab close / navigation away
- * via a beforeunload handler. Does NOT remove the player from the room
- * — they can rejoin within the grace period.
+ * Soft leave (tab close / refresh beacon): mark disconnected and start a
+ * reconnect grace window when < 2 players remain.
  *
- * If the game is in progress and only 1 connected player remains, the
- * game is force-ended since 1-player games are not playable.
- * Empty waiting lobbies are deleted immediately.
+ * Explicit Leave button: if < 2 remain, end the game immediately so the
+ * other player is not stuck on submit/vote waiting screens.
  */
 export async function POST(
   request: NextRequest,
@@ -31,7 +32,12 @@ export async function POST(
   const { code } = await params;
   const roomCode = code.trim().toUpperCase();
 
-  let body: { sessionId?: string };
+  let body: {
+    sessionId?: string;
+    disconnectedAt?: number | string;
+    /** "explicit" = Leave button; omit/unload = refresh / tab close */
+    reason?: "explicit" | "unload";
+  };
   try {
     body = await request.json();
   } catch {
@@ -43,9 +49,19 @@ export async function POST(
     return NextResponse.json({ error: "Missing sessionId." }, { status: 400 });
   }
 
+  const disconnectedAt =
+    body.disconnectedAt != null ? new Date(body.disconnectedAt) : new Date(0);
+  if (Number.isNaN(disconnectedAt.getTime())) {
+    return NextResponse.json(
+      { error: "Invalid disconnectedAt." },
+      { status: 400 }
+    );
+  }
+
+  const explicitLeave = body.reason === "explicit";
+
   await connectToDatabase();
 
-  // Fetch room to get the player's display name before marking disconnected
   const room = await RoomModel.findOne({ roomCode }).lean();
   if (!room) {
     return NextResponse.json({ error: "Room not found." }, { status: 404 });
@@ -63,35 +79,66 @@ export async function POST(
 
   const displayName = player.displayName;
 
-  // Atomically mark the player as disconnected
+  // How many would remain connected after this leave?
+  const othersConnected = room.players.filter(
+    (p: { sessionId: string; connected: boolean }) =>
+      p.sessionId !== sessionId && p.connected
+  ).length;
+
+  const graceDeadline =
+    room.status === "playing" && othersConnected < 2 && !explicitLeave
+      ? new Date(Date.now() + RECONNECT_GRACE_MS)
+      : null;
+
   const updated = await RoomModel.findOneAndUpdate(
-    { roomCode, "players.sessionId": sessionId },
-    { $set: { "players.$.connected": false } },
+    {
+      roomCode,
+      players: {
+        $elemMatch: {
+          sessionId,
+          $or: [
+            { lastSeenAt: { $exists: false } },
+            { lastSeenAt: null },
+            { lastSeenAt: { $lte: disconnectedAt } },
+          ],
+        },
+      },
+    },
+    {
+      $set: {
+        "players.$.connected": false,
+        ...(graceDeadline
+          ? { abandonDeadline: graceDeadline }
+          : room.status === "playing" && othersConnected >= 2
+            ? { abandonDeadline: null }
+            : {}),
+      },
+    },
     { new: true }
   ).lean();
 
   if (!updated) {
-    return NextResponse.json(
-      { error: "Room or player not found." },
-      { status: 404 }
-    );
+    return NextResponse.json({ success: true, ignored: true });
   }
 
   const channel = getRoomChannelName(roomCode);
   const serialized = serializeRoom(updated);
   const connectedPlayers = serialized.players.filter((p) => p.connected);
 
-  // Notify the room about the player leaving
-  await pusherServer.trigger(channel, PUSHER_EVENTS.PLAYER_LEFT, {
-    sessionId,
-    displayName,
-    players: serialized.players,
-    playerCount: connectedPlayers.length,
-  });
+  let abandonDeadline: string | null = graceDeadline
+    ? graceDeadline.toISOString()
+    : null;
+  let ended = false;
 
-  // Empty waiting lobby → delete forever (no point keeping a ghost room)
   if (updated.status === "waiting" && connectedPlayers.length === 0) {
     await deleteRoomAndRounds(roomCode);
+    await pusherServer.trigger(channel, PUSHER_EVENTS.PLAYER_LEFT, {
+      sessionId,
+      displayName,
+      players: serialized.players,
+      playerCount: 0,
+      abandonDeadline: null,
+    });
     trackActivity({
       type: "leave",
       request,
@@ -103,33 +150,29 @@ export async function POST(
     return NextResponse.json({ success: true, deleted: true });
   }
 
-  // If the game is in progress and only 0-1 connected players remain,
-  // force-end — you can't play alone.
-  if (
-    updated.status === "playing" &&
-    connectedPlayers.length < 2
-  ) {
-    await RoomModel.updateOne(
-      { roomCode },
-      {
-        $set: {
-          status: "finished",
-          expiresAt: finishedExpiresAt(),
-        },
-      }
-    );
+  if (updated.status === "playing") {
+    await revealIfVotingComplete(updated);
+  }
 
-    const scores = serialized.players.map((p) => ({
-      sessionId: p.sessionId,
-      displayName: p.displayName,
-      score: p.score,
-    }));
+  if (updated.status === "playing" && connectedPlayers.length < 2 && explicitLeave) {
+    const result = await endGameIfAlone(roomCode);
+    ended = Boolean(result?.ended);
+    abandonDeadline = null;
+  }
 
-    await pusherServer.trigger(channel, PUSHER_EVENTS.GAME_ENDED, {
-      scores,
-      reason: "not-enough-players",
-      message: `Not enough players: ${displayName} left and the game cannot continue.`,
-    });
+  const latest = await RoomModel.findOne({ roomCode }).lean();
+  const playersOut = latest ? serializeRoom(latest).players : serialized.players;
+
+  await pusherServer.trigger(channel, PUSHER_EVENTS.PLAYER_LEFT, {
+    sessionId,
+    displayName,
+    players: playersOut,
+    playerCount: playersOut.filter((p) => p.connected).length,
+    abandonDeadline,
+  });
+
+  if (!ended) {
+    await reconcileAbandonedRoom(roomCode);
   }
 
   trackActivity({
@@ -138,7 +181,12 @@ export async function POST(
     route: "/api/room/[code]/leave",
     roomCode,
     sessionId,
+    metadata: {
+      explicitLeave,
+      ended,
+      ...(abandonDeadline ? { abandonDeadline } : {}),
+    },
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, abandonDeadline, ended });
 }

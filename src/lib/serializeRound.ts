@@ -1,4 +1,5 @@
 import type { Round, RoundPublicView } from "@/types/game";
+import { VOTE_DURATION_MS } from "@/lib/gameTiming";
 
 /**
  * Raw shape that comes back from a Mongoose `.lean()` call on a Round
@@ -11,8 +12,17 @@ export interface LeanRoundDocument {
   statements: string[];
   lieIndex: number;
   votes: Array<{ sessionId: string; votedIndex: number }>;
+  voteDeadline?: Date | null;
   revealedAt: Date | null;
   createdAt: Date;
+}
+
+function serializeVoteDeadline(doc: LeanRoundDocument): string {
+  if (doc.voteDeadline) {
+    return new Date(doc.voteDeadline).toISOString();
+  }
+  // Legacy rounds created before voteDeadline existed.
+  return new Date(doc.createdAt.getTime() + VOTE_DURATION_MS).toISOString();
 }
 
 /**
@@ -30,6 +40,7 @@ export function serializeRound(doc: LeanRoundDocument): Round {
       sessionId: v.sessionId,
       votedIndex: v.votedIndex as 0 | 1 | 2,
     })),
+    voteDeadline: serializeVoteDeadline(doc),
     revealedAt: doc.revealedAt ? doc.revealedAt.toISOString() : null,
     createdAt: doc.createdAt.toISOString(),
   };
@@ -51,6 +62,7 @@ export function serializeRoundPublicView(
       sessionId: v.sessionId,
       votedIndex: v.votedIndex as 0 | 1 | 2,
     })),
+    voteDeadline: serializeVoteDeadline(doc),
     revealedAt: doc.revealedAt ? doc.revealedAt.toISOString() : null,
   };
 }

@@ -113,7 +113,10 @@ export default function PlayPage() {
   const [state, setState] = useState<PlayState>({ phase: "loading" });
   const [notification, setNotification] = useState<string | null>(null);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abandonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string>("");
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useGameScenePhase(state.phase);
 
@@ -124,7 +127,11 @@ export default function PlayPage() {
       await fetch(`/api/room/${encodeURIComponent(roomCode)}/leave`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: sid }),
+        body: JSON.stringify({
+          sessionId: sid,
+          disconnectedAt: Date.now(),
+          reason: "explicit",
+        }),
       });
     } catch {
       // Best-effort
@@ -133,20 +140,76 @@ export default function PlayPage() {
     router.push("/");
   }, [roomCode, router]);
 
-  // Fire leave on tab close
+  // Soft-leave on tab close / refresh (server grants a reconnect grace window).
   useEffect(() => {
     const sid = getOrCreateSessionId();
     sessionIdRef.current = sid;
 
     const handleBeforeUnload = () => {
+      const payload = new Blob(
+        [
+          JSON.stringify({
+            sessionId: sid,
+            disconnectedAt: Date.now(),
+            reason: "unload",
+          }),
+        ],
+        { type: "application/json" }
+      );
       navigator.sendBeacon(
         `/api/room/${encodeURIComponent(roomCode)}/leave`,
-        JSON.stringify({ sessionId: sid })
+        payload
       );
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      if (abandonTimerRef.current) clearTimeout(abandonTimerRef.current);
+    };
   }, [roomCode]);
+
+  /** If the room finished while we were waiting, jump to the scoreboard. */
+  const applyFinishedRoom = useCallback(
+    (
+      room: Room,
+      reason?: string
+    ) => {
+      const sid = sessionIdRef.current || getOrCreateSessionId();
+      setState({
+        phase: "scoreboard",
+        room: { ...room, status: "finished" },
+        sessionId: sid,
+        isGameOver: true,
+        gameEndReason: reason ?? "not-enough-players",
+        pendingRotation: null,
+      });
+    },
+    []
+  );
+
+  const pollRoomForAbandon = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/room/${encodeURIComponent(roomCode)}`);
+      const json = await res.json();
+      if (!res.ok || !json.room) return;
+      if (json.room.status === "finished") {
+        applyFinishedRoom(json.room);
+      } else {
+        setState((prev) => {
+          if (!("room" in prev)) return prev;
+          if (prev.phase === "finished" || prev.phase === "scoreboard") {
+            return prev;
+          }
+          return {
+            ...prev,
+            room: { ...prev.room, ...json.room, players: json.room.players },
+          } as PlayState;
+        });
+      }
+    } catch {
+      // ignore transient errors
+    }
+  }, [roomCode, applyFinishedRoom]);
 
   /* ================================================================
      Helpers
@@ -190,21 +253,68 @@ export default function PlayPage() {
 
     async function load() {
       try {
-        // Fetch room
-        const roomRes = await fetch(`/api/room/${encodeURIComponent(roomCode)}`);
-        const roomJson = await roomRes.json();
+        // Rejoin before reading state so a refresh doesn't keep us
+        // disconnected (and so the reconnect grace window is cleared).
+        const rejoinRes = await fetch(
+          `/api/room/${encodeURIComponent(roomCode)}/rejoin`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId }),
+          }
+        );
+        const rejoinJson = await rejoinRes.json();
 
         if (cancelled) return;
 
-        if (!roomRes.ok || "error" in roomJson) {
-          setState({
-            phase: "error",
-            message: "error" in roomJson ? roomJson.error : "Failed to load game.",
-          });
+        if (rejoinRes.status === 410) {
+          // Game already ended (including after an expired reconnect grace).
+          const roomRes = await fetch(
+            `/api/room/${encodeURIComponent(roomCode)}`
+          );
+          const roomJson = await roomRes.json();
+          if (cancelled) return;
+          if (roomRes.ok && roomJson.room) {
+            setState({
+              phase: "finished",
+              room: roomJson.room,
+              sessionId,
+              gameEndReason: "not-enough-players",
+            });
+          } else {
+            setState({
+              phase: "error",
+              message:
+                "error" in rejoinJson
+                  ? rejoinJson.error
+                  : "This game has already ended.",
+            });
+          }
           return;
         }
 
-        const room: Room = roomJson.room;
+        // Fetch room (prefer rejoin payload when available)
+        const room: Room =
+          rejoinRes.ok && rejoinJson.room
+            ? rejoinJson.room
+            : (
+                await (async () => {
+                  const roomRes = await fetch(
+                    `/api/room/${encodeURIComponent(roomCode)}`
+                  );
+                  const roomJson = await roomRes.json();
+                  if (!roomRes.ok || "error" in roomJson) {
+                    throw new Error(
+                      "error" in roomJson
+                        ? roomJson.error
+                        : "Failed to load game."
+                    );
+                  }
+                  return roomJson.room as Room;
+                })()
+              );
+
+        if (cancelled) return;
 
         // If still in lobby, redirect
         if (room.status === "waiting") {
@@ -618,13 +728,6 @@ export default function PlayPage() {
           return final ? { ...p, score: final.score } : p;
         });
 
-        if (prev.phase === "awaiting_votes" || prev.phase === "reveal") {
-          return {
-            ...prev,
-            room: { ...prev.room, players: updatedPlayers, status: "finished" },
-          } as PlayState;
-        }
-
         return {
           phase: "scoreboard",
           room: { ...prev.room, players: updatedPlayers, status: "finished" },
@@ -642,12 +745,25 @@ export default function PlayPage() {
       displayName?: string;
       players: Player[];
       playerCount: number;
+      abandonDeadline?: string | null;
     }) => {
       if (data.displayName) {
-        setNotification(`${data.displayName} left the game`);
+        setNotification(
+          data.abandonDeadline
+            ? `${data.displayName} disconnected — waiting for reconnect…`
+            : `${data.displayName} left the game`
+        );
         setTimeout(() => setNotification(null), 4000);
       }
       setState((prev) => {
+        if (prev.phase === "awaiting_votes") {
+          return {
+            ...prev,
+            room: { ...prev.room, players: data.players },
+            // Count connected seats for the vote progress UI.
+            playerCount: data.players.filter((p) => p.connected).length,
+          } as PlayState;
+        }
         if ("room" in prev) {
           return {
             ...prev,
@@ -656,6 +772,22 @@ export default function PlayPage() {
         }
         return prev;
       });
+
+      // Remaining player: after reconnect grace, reconcile (and apply finished UI).
+      if (abandonTimerRef.current) {
+        clearTimeout(abandonTimerRef.current);
+        abandonTimerRef.current = null;
+      }
+      if (data.abandonDeadline) {
+        const delay =
+          Math.max(0, Date.parse(data.abandonDeadline) - Date.now()) + 400;
+        abandonTimerRef.current = setTimeout(() => {
+          void pollRoomForAbandon();
+        }, delay);
+      } else if (data.players.filter((p) => p.connected).length < 2) {
+        // Explicit leave may have already ended the game — pick that up now.
+        void pollRoomForAbandon();
+      }
     };
 
     const handlePlayerJoined = (data: {
@@ -663,6 +795,10 @@ export default function PlayPage() {
       playerCount: number;
       targetSize: number;
     }) => {
+      if (abandonTimerRef.current) {
+        clearTimeout(abandonTimerRef.current);
+        abandonTimerRef.current = null;
+      }
       setState((prev) => {
         if ("room" in prev) {
           return {
@@ -701,7 +837,30 @@ export default function PlayPage() {
       channel.unbind(PUSHER_EVENTS.PLAY_AGAIN_REQUESTED, handlePlayAgainRequested);
       pusher.unsubscribe(channelName);
     };
-  }, [state.phase, roomCode, buildVoteResult]);
+  }, [state.phase, roomCode, buildVoteResult, pollRoomForAbandon]);
+
+  // While alone mid-game (submit or vote wait), keep polling so a leave/abandon
+  // cannot leave this client stuck if a Pusher event was missed.
+  useEffect(() => {
+    if (
+      state.phase === "loading" ||
+      state.phase === "error" ||
+      state.phase === "finished" ||
+      state.phase === "scoreboard"
+    ) {
+      return;
+    }
+    if (!("room" in state) || state.room.status !== "playing") return;
+
+    const connected = state.room.players.filter((p) => p.connected).length;
+    if (connected >= 2) return;
+
+    void pollRoomForAbandon();
+    const id = setInterval(() => {
+      void pollRoomForAbandon();
+    }, 2500);
+    return () => clearInterval(id);
+  }, [state, pollRoomForAbandon]);
 
   /* ================================================================
      Action handlers
@@ -811,9 +970,10 @@ export default function PlayPage() {
 
   /** Timer expired — close voting; missing votes count as wrong for the writer. */
   const handleVoteTimeout = useCallback(async () => {
-    if (state.phase !== "vote" && state.phase !== "awaiting_votes") return;
+    const current = stateRef.current;
+    if (current.phase !== "vote" && current.phase !== "awaiting_votes") return;
 
-    const roundNumber = state.round.roundNumber;
+    const roundNumber = current.round.roundNumber;
 
     try {
       await fetch("/api/round/reveal", {
@@ -824,7 +984,7 @@ export default function PlayPage() {
     } catch {
       // Another client may have revealed already; Pusher will sync state.
     }
-  }, [state, roomCode]);
+  }, [roomCode]);
 
   const handleRevealContinue = useCallback(() => {
     if (state.phase !== "reveal") return;
@@ -1090,6 +1250,7 @@ export default function PlayPage() {
                 onVote={handleVote}
                 hasVoted={false}
                 votedIndex={state.votedIndex}
+                voteDeadline={state.round.voteDeadline}
                 onTimeout={handleVoteTimeout}
               />
             </div>
@@ -1118,6 +1279,7 @@ export default function PlayPage() {
                 isSubmitter={state.isSubmitter}
                 showContinue={state.allVotesIn && state.pendingReveal !== null}
                 onContinue={handleContinueFromResults}
+                voteDeadline={state.round.voteDeadline}
                 onTimeout={handleVoteTimeout}
               />
             </div>

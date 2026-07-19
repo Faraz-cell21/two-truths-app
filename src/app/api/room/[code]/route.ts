@@ -7,6 +7,7 @@ import {
   deleteRoomAndRounds,
   isExpired,
 } from "@/lib/roomLifetime";
+import { reconcileAbandonedRoom } from "@/lib/reconcileAbandonedRoom";
 
 /**
  * GET /api/room/:code
@@ -15,6 +16,7 @@ import {
  * load and for reconnection after a page refresh.
  *
  * Waiting lobbies past expiresAt are deleted permanently (410).
+ * Also reconciles an expired reconnect-grace abandon into finished.
  */
 export async function GET(
   request: NextRequest,
@@ -32,7 +34,7 @@ export async function GET(
 
   await connectToDatabase();
 
-  const room = await RoomModel.findOne({ roomCode }).lean();
+  let room = await RoomModel.findOne({ roomCode }).lean();
 
   if (!room) {
     return NextResponse.json(
@@ -41,8 +43,12 @@ export async function GET(
     );
   }
 
+  const abandoned = await reconcileAbandonedRoom(roomCode, room);
+  if (abandoned) {
+    room = abandoned.room;
+  }
+
   if (isExpired(room.expiresAt as Date)) {
-    // Waiting lobbies and finished games past their window are gone forever.
     if (room.status === "waiting" || room.status === "finished") {
       await deleteRoomAndRounds(roomCode);
       return NextResponse.json(

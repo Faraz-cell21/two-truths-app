@@ -475,13 +475,17 @@ export default function PlayPage() {
       submittedBy: string;
     }) => {
       setState((prev) => {
-        if (prev.phase === "awaiting_statements" || prev.phase === "submit") {
+        // Only non-submitters advance to voting here. The submitter must never
+        // be pushed into voting on their own round — handleSubmit moves them to
+        // "awaiting_votes" (it has the lieIndex locally; this event carries only
+        // the public view without it). Ignoring the "submit" phase also avoids a
+        // race where this broadcast lands before handleSubmit's own setState.
+        if (prev.phase === "awaiting_statements") {
           return {
             phase: "vote",
-            room: prev.phase === "submit" ? prev.room : prev.room,
+            room: prev.room,
             round: data.round,
-            sessionId:
-              prev.phase === "submit" ? prev.sessionId : prev.sessionId,
+            sessionId: prev.sessionId,
             votedIndex: null,
           } as PlayState;
         }

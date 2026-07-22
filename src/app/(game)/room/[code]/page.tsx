@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { getOrCreateSessionId, setStoredRoomCode, clearStoredRoomCode } from "@/lib/session";
 import {
   getPusherClient,
@@ -259,6 +260,8 @@ export default function LobbyPage() {
 
   useEffect(() => {
     if (state.phase !== "active" || !lobbyExpiresAtIso) {
+      // Reset the countdown when there is no active lobby deadline to track.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting derived timer state on phase change
       setLobbySecondsLeft(null);
       return;
     }
@@ -340,12 +343,12 @@ export default function LobbyPage() {
         </h1>
         <hr className="polygraph-line max-w-xs" />
         <p className="text-muted">{state.message}</p>
-        <a
+        <Link
           href="/"
           className="rounded-lg border border-border px-6 py-2 font-medium text-warm transition-colors hover:border-muted"
         >
           Back to headquarters
-        </a>
+        </Link>
       </main>
     );
   }

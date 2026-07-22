@@ -119,7 +119,11 @@ export default function AdminDashboardPage() {
   }, []);
 
   useEffect(() => {
+    // loadStats sets loading/error state as it starts the fetch; this is the
+    // intended initial data load, then it re-runs on an interval.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial async stats load
     loadStats();
+    // Derived from window.location — resolvable only on the client.
     setDashboardUrl(getAdminDashboardUrlForBrowser());
     const interval = setInterval(loadStats, 30000);
     return () => clearInterval(interval);

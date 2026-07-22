@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { getOrCreateSessionId, setStoredRoomCode, clearStoredRoomCode } from "@/lib/session";
 import {
   getPusherClient,
@@ -116,7 +117,11 @@ export default function PlayPage() {
   const abandonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string>("");
   const stateRef = useRef(state);
-  stateRef.current = state;
+  // Keep a ref to the latest state for async timer callbacks (e.g. the vote
+  // timeout). Updated post-commit so we never read refs during render.
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useGameScenePhase(state.phase);
 
@@ -855,6 +860,9 @@ export default function PlayPage() {
     const connected = state.room.players.filter((p) => p.connected).length;
     if (connected >= 2) return;
 
+    // Poll immediately, then on an interval. pollRoomForAbandon updates state
+    // internally; this initial call is the intended kick-off, not a render loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time poll kickoff for abandon detection
     void pollRoomForAbandon();
     const id = setInterval(() => {
       void pollRoomForAbandon();
@@ -1098,12 +1106,12 @@ export default function PlayPage() {
         </h1>
         <hr className="polygraph-line max-w-xs" />
         <p className="text-muted">{state.message}</p>
-        <a
+        <Link
           href="/"
           className="rounded-lg border border-border px-6 py-2 font-medium text-warm transition-colors hover:border-muted"
         >
           Back to headquarters
-        </a>
+        </Link>
       </main>
     );
   }

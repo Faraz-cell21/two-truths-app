@@ -48,8 +48,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>("dark");
   const [mounted, setMounted] = useState(false);
 
-  // Hydrate on mount to avoid SSR mismatch
+  // Hydrate on mount to avoid SSR mismatch. getInitialTheme() reads
+  // localStorage / matchMedia, so it must run client-side in an effect;
+  // the synchronous setState here is the intended one-time hydration.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe hydration from localStorage/matchMedia
     setTheme(getInitialTheme());
     setMounted(true);
   }, []);

@@ -14,7 +14,10 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [urls, setUrls] = useState({ login: "", dashboard: "" });
 
+  // URLs are derived from window.location, so they can only be resolved on
+  // the client — the synchronous setState here is intended browser hydration.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- browser-only URL resolution
     setUrls({
       login: getAdminLoginUrlForBrowser(),
       dashboard: getAdminDashboardUrlForBrowser(),

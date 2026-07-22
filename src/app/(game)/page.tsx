@@ -44,22 +44,6 @@ export default function HomePage() {
   const [state, setState] = useState<PageState>({ phase: "idle" });
   const [rejoin, setRejoin] = useState<RejoinState>({ phase: "checking" });
 
-  // Hydrate from localStorage on mount (SSR-safe: state lives in useEffect)
-  useEffect(() => {
-    const sid = getOrCreateSessionId();
-    setSessionId(sid);
-    const stored = getStoredDisplayName();
-    if (stored) setDisplayName(stored);
-
-    // Check if there's an active room to rejoin
-    const storedCode = getStoredRoomCode();
-    if (storedCode) {
-      checkRejoin(sid, storedCode);
-    } else {
-      setRejoin({ phase: "none" });
-    }
-  }, []);
-
   /* ---- rejoin check ---- */
   const checkRejoin = useCallback(
     async (sid: string, code: string) => {
@@ -83,6 +67,25 @@ export default function HomePage() {
     },
     []
   );
+
+  // Hydrate from localStorage on mount. These reads touch browser-only APIs
+  // (localStorage), so they must run in an effect for SSR safety — the
+  // synchronous setState here is the intended one-time hydration.
+  useEffect(() => {
+    const sid = getOrCreateSessionId();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe hydration from localStorage
+    setSessionId(sid);
+    const stored = getStoredDisplayName();
+    if (stored) setDisplayName(stored);
+
+    // Check if there's an active room to rejoin
+    const storedCode = getStoredRoomCode();
+    if (storedCode) {
+      checkRejoin(sid, storedCode);
+    } else {
+      setRejoin({ phase: "none" });
+    }
+  }, [checkRejoin]);
 
   const handleRejoin = useCallback(() => {
     if (rejoin.phase !== "found") return;

@@ -382,7 +382,7 @@ export default function HomePage() {
             <p>
               <span className="font-semibold text-warm">2. Each round,</span>{" "}
               one player writes three statements: two truths and one lie.
-              Mark the lie before submitting. Writers have 2 minutes —
+              Mark the lie before submitting. Writers have 90 seconds —
               running out of time costs 1 point (scores never go below 0).
             </p>
             <p>

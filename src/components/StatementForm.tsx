@@ -157,7 +157,7 @@ export default function StatementForm({
           <span className="text-[0.65rem] uppercase tracking-widest text-muted">
             Time
           </span>
-          {timer === null ? "2:00" : formatTime(timer)}
+          {timer === null ? "1:30" : formatTime(timer)}
         </div>
 
         <div className="flex items-center justify-center gap-2" aria-hidden="true">

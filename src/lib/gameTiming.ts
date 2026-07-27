@@ -2,7 +2,7 @@
 export const VOTE_DURATION_MS = 30 * 1000;
 
 /** Writing window for the current submitter. */
-export const SUBMIT_DURATION_MS = 120 * 1000;
+export const SUBMIT_DURATION_MS = 90 * 1000;
 
 /**
  * After a playing room drops below 2 connected players, wait this long

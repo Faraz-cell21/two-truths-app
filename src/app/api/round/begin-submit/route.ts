@@ -5,7 +5,7 @@ import { beginSubmitWindow } from "@/lib/beginSubmitWindow";
 /**
  * POST /api/round/begin-submit
  *
- * Called when a client enters the writing UI. Starts the shared 120s
+ * Called when a client enters the writing UI. Starts the shared 90s
  * server deadline (once per turn). Safe for every player to call.
  */
 export async function POST(request: NextRequest) {

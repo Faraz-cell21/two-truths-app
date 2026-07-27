@@ -1,8 +1,8 @@
 /** Voting window after statements are submitted. */
 export const VOTE_DURATION_MS = 30 * 1000;
 
-/** Optional submit-window used by unfinished submit-deadline helpers. */
-export const SUBMIT_DURATION_MS = 90 * 1000;
+/** Writing window for the current submitter. */
+export const SUBMIT_DURATION_MS = 120 * 1000;
 
 /**
  * After a playing room drops below 2 connected players, wait this long
@@ -45,4 +45,25 @@ export function isVoteDeadlinePassed(
   now: Date = new Date()
 ): boolean {
   return now.getTime() >= resolveVoteDeadline(round).getTime();
+}
+
+export function resolveSubmitDeadline(
+  submitDeadline?: Date | string | null
+): Date | null {
+  if (!submitDeadline) return null;
+  const d =
+    typeof submitDeadline === "string"
+      ? new Date(submitDeadline)
+      : submitDeadline;
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+export function isSubmitDeadlinePassed(
+  submitDeadline?: Date | string | null,
+  now: Date = new Date()
+): boolean {
+  const d = resolveSubmitDeadline(submitDeadline);
+  if (!d) return false;
+  return now.getTime() >= d.getTime();
 }

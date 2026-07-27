@@ -21,6 +21,60 @@ import { useGameScenePhase } from "@/components/three/useGameScenePhase";
 import type { Room, Round, RoundPublicView, Player, Vote, ScoreDelta } from "@/types/game";
 import type { SubmitResponse, RoundGetSuccessResponse } from "@/types/api";
 
+const REVEAL_AUTO_ADVANCE_SECONDS = 5;
+
+function RevealContinueButton({
+  isFinal,
+  onContinue,
+}: {
+  isFinal: boolean;
+  onContinue: () => void;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState(
+    isFinal ? REVEAL_AUTO_ADVANCE_SECONDS : null
+  );
+  const onContinueRef = useRef(onContinue);
+  useEffect(() => {
+    onContinueRef.current = onContinue;
+  }, [onContinue]);
+
+  useEffect(() => {
+    if (!isFinal) return;
+    setSecondsLeft(REVEAL_AUTO_ADVANCE_SECONDS);
+    const id = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev === null) return prev;
+        if (prev <= 1) {
+          clearInterval(id);
+          queueMicrotask(() => onContinueRef.current());
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isFinal]);
+
+  return (
+    <div className="text-center space-y-2">
+      <button
+        type="button"
+        onClick={onContinue}
+        className="rounded-lg bg-truth px-8 py-3 font-semibold text-ink transition-opacity hover:opacity-90"
+      >
+        {isFinal && secondsLeft !== null && secondsLeft > 0
+          ? `Continue (${secondsLeft})`
+          : "Continue"}
+      </button>
+      {isFinal && secondsLeft !== null && secondsLeft > 0 && (
+        <p className="text-xs text-muted">
+          Scoreboard in {secondsLeft}s…
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ===================================================================
    Game Page — /room/[code]/play
 
@@ -33,6 +87,18 @@ import type { SubmitResponse, RoundGetSuccessResponse } from "@/types/api";
    =================================================================== */
 
 /* ---- Phase discriminated union ---- */
+type PendingRotation = {
+  nextRound: number;
+  nextSubmitter: { sessionId: string; displayName: string };
+  submitDeadline?: string | null;
+};
+
+type PendingGameEnd = {
+  scores: Array<{ sessionId: string; displayName: string; score: number }>;
+  reason?: string;
+  message?: string;
+};
+
 type PlayState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
@@ -71,10 +137,8 @@ type PlayState =
         scoreDeltas: ScoreDelta[];
         scores: Array<{ sessionId: string; displayName: string; score: number }>;
       } | null;
-      pendingRotation: {
-        nextRound: number;
-        nextSubmitter: { sessionId: string; displayName: string };
-      } | null;
+      pendingRotation: PendingRotation | null;
+      pendingGameEnd: PendingGameEnd | null;
     }
   | {
       phase: "reveal";
@@ -83,10 +147,8 @@ type PlayState =
       sessionId: string;
       scoreDeltas: ScoreDelta[];
       scores: Array<{ sessionId: string; displayName: string; score: number }>;
-      pendingRotation: {
-        nextRound: number;
-        nextSubmitter: { sessionId: string; displayName: string };
-      } | null;
+      pendingRotation: PendingRotation | null;
+      pendingGameEnd: PendingGameEnd | null;
     }
   | {
       phase: "scoreboard";
@@ -94,10 +156,7 @@ type PlayState =
       sessionId: string;
       isGameOver: boolean;
       gameEndReason?: string;
-      pendingRotation: {
-        nextRound: number;
-        nextSubmitter: { sessionId: string; displayName: string };
-      } | null;
+      pendingRotation: PendingRotation | null;
     }
   | {
       phase: "finished";
@@ -124,6 +183,57 @@ export default function PlayPage() {
   }, [state]);
 
   useGameScenePhase(state.phase);
+
+  /* Start the shared writing clock only once the writing UI is on screen. */
+  useEffect(() => {
+    if (state.phase !== "submit" && state.phase !== "awaiting_statements") {
+      return;
+    }
+    if (state.room.submitDeadline) return;
+
+    let cancelled = false;
+
+    async function startWindow() {
+      try {
+        const res = await fetch("/api/round/begin-submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomCode }),
+        });
+        const json = await res.json();
+        if (cancelled || !res.ok || !json.submitDeadline) return;
+        setState((prev) => {
+          if (
+            prev.phase !== "submit" &&
+            prev.phase !== "awaiting_statements"
+          ) {
+            return prev;
+          }
+          if (prev.room.submitDeadline) return prev;
+          return {
+            ...prev,
+            room: { ...prev.room, submitDeadline: json.submitDeadline },
+          } as PlayState;
+        });
+      } catch {
+        // Pusher SUBMIT_WINDOW_STARTED from another client may still sync.
+      }
+    }
+
+    void startWindow();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    state.phase,
+    roomCode,
+    state.phase === "submit" || state.phase === "awaiting_statements"
+      ? state.room.submitDeadline
+      : null,
+    state.phase === "submit" || state.phase === "awaiting_statements"
+      ? state.room.currentRound
+      : null,
+  ]);
 
   /* ---- Leave ---- */
   const handleLeave = useCallback(async () => {
@@ -367,6 +477,9 @@ export default function PlayPage() {
 
         // Round is revealed → show reveal until user continues
         if (round.revealedAt || scoreDeltas) {
+          const isFinal =
+            roundJson.gameEnded ||
+            round.roundNumber >= room.players.length;
           setState({
             phase: "reveal",
             room,
@@ -379,6 +492,15 @@ export default function PlayPage() {
               score: p.score,
             })),
             pendingRotation: null,
+            pendingGameEnd: isFinal
+              ? {
+                  scores: room.players.map((p) => ({
+                    sessionId: p.sessionId,
+                    displayName: p.displayName,
+                    score: p.score,
+                  })),
+                }
+              : null,
           });
           return;
         }
@@ -411,6 +533,7 @@ export default function PlayPage() {
             allVotesIn: false,
             pendingReveal: null,
             pendingRotation: null,
+            pendingGameEnd: null,
           });
         } else if (hasVoted) {
           const myVote = round.votes.find((v: Vote) => v.sessionId === sessionId);
@@ -428,6 +551,7 @@ export default function PlayPage() {
             allVotesIn: false,
             pendingReveal: null,
             pendingRotation: null,
+            pendingGameEnd: null,
           });
         } else {
           setState({
@@ -483,7 +607,7 @@ export default function PlayPage() {
         if (prev.phase === "awaiting_statements") {
           return {
             phase: "vote",
-            room: prev.room,
+            room: { ...prev.room, submitDeadline: null },
             round: data.round,
             sessionId: prev.sessionId,
             votedIndex: null,
@@ -520,6 +644,7 @@ export default function PlayPage() {
               allVotesIn: data.votesRemaining === 0,
               pendingReveal: null,
               pendingRotation: null,
+              pendingGameEnd: null,
             } as PlayState;
           }
           // Another player voted — update vote count while we still pick
@@ -576,6 +701,10 @@ export default function PlayPage() {
               return updated ? { ...p, score: updated.score } : p;
             }),
           };
+          const totalRounds = room.players.length;
+          const isFinal =
+            room.status === "finished" ||
+            data.round.roundNumber >= totalRounds;
           return {
             ...prev,
             room,
@@ -595,6 +724,11 @@ export default function PlayPage() {
               scoreDeltas: data.scoreDeltas,
               scores: data.scores,
             },
+            pendingGameEnd: isFinal
+              ? prev.pendingGameEnd ?? {
+                  scores: data.scores,
+                }
+              : prev.pendingGameEnd,
           } as PlayState;
         }
 
@@ -610,6 +744,10 @@ export default function PlayPage() {
                 return updated ? { ...p, score: updated.score } : p;
               }),
             };
+            const totalRounds = room.players.length;
+            const isFinal =
+              room.status === "finished" ||
+              data.round.roundNumber >= totalRounds;
             return {
               phase: "awaiting_votes",
               room,
@@ -635,6 +773,7 @@ export default function PlayPage() {
                 scores: data.scores,
               },
               pendingRotation: null,
+              pendingGameEnd: isFinal ? { scores: data.scores } : null,
             } as PlayState;
           }
         }
@@ -655,6 +794,10 @@ export default function PlayPage() {
                   }),
                 }
               : ({} as Room);
+          const totalRounds = room.players?.length ?? 0;
+          const isFinal =
+            room.status === "finished" ||
+            data.round.roundNumber >= totalRounds;
           return {
             phase: "reveal",
             room,
@@ -664,6 +807,7 @@ export default function PlayPage() {
             scoreDeltas: data.scoreDeltas,
             scores: data.scores,
             pendingRotation: null,
+            pendingGameEnd: isFinal ? { scores: data.scores } : null,
           } as PlayState;
         }
         return prev;
@@ -674,6 +818,7 @@ export default function PlayPage() {
     const handleRoundRotated = (data: {
       nextRound: number;
       nextSubmitter: { sessionId: string; displayName: string };
+      submitDeadline?: string | null;
     }) => {
       if (revealTimerRef.current) {
         clearTimeout(revealTimerRef.current);
@@ -691,7 +836,11 @@ export default function PlayPage() {
           const room = prev.room;
           const amISubmitter =
             data.nextSubmitter.sessionId === prev.sessionId;
-          const updatedRoom = { ...room, currentRound: data.nextRound };
+          const updatedRoom = {
+            ...room,
+            currentRound: data.nextRound,
+            submitDeadline: data.submitDeadline ?? null,
+          };
 
           if (amISubmitter) {
             return {
@@ -729,6 +878,8 @@ export default function PlayPage() {
         setTimeout(() => setNotification(null), 6000);
       }
 
+      const isAbandon = data.reason === "not-enough-players";
+
       setState((prev) => {
         if (!("room" in prev)) return prev;
 
@@ -736,10 +887,54 @@ export default function PlayPage() {
           const final = data.scores.find((s) => s.sessionId === p.sessionId);
           return final ? { ...p, score: final.score } : p;
         });
+        const finishedRoom = {
+          ...prev.room,
+          players: updatedPlayers,
+          status: "finished" as const,
+          submitDeadline: null,
+        };
+        const pendingGameEnd = {
+          scores: data.scores,
+          reason: data.reason,
+          message: data.message,
+        };
 
+        // Final-round reveal path: stash end state and let the player finish
+        // vote results → reveal → scoreboard. Abandon still jumps immediately.
+        if (
+          !isAbandon &&
+          (prev.phase === "awaiting_votes" ||
+            prev.phase === "vote" ||
+            prev.phase === "reveal")
+        ) {
+          if (prev.phase === "vote") {
+            // ROUND_REVEALED may still be in flight — mark finished and wait.
+            return {
+              ...prev,
+              room: finishedRoom,
+            } as PlayState;
+          }
+          return {
+            ...prev,
+            room: finishedRoom,
+            pendingGameEnd,
+          } as PlayState;
+        }
+
+        if (prev.phase === "scoreboard") {
+          return {
+            ...prev,
+            room: finishedRoom,
+            isGameOver: true,
+            gameEndReason: data.reason,
+            pendingRotation: null,
+          } as PlayState;
+        }
+
+        // submit / awaiting_statements timeout end, abandon, etc.
         return {
           phase: "scoreboard",
-          room: { ...prev.room, players: updatedPlayers, status: "finished" },
+          room: finishedRoom,
           sessionId: prev.sessionId,
           isGameOver: true,
           gameEndReason: data.reason,
@@ -819,6 +1014,104 @@ export default function PlayPage() {
       });
     };
 
+    /* ---- SUBMIT_TIMED_OUT ---- */
+    const handleSubmitTimedOut = (data: {
+      timedOutSessionId: string;
+      timedOutDisplayName: string;
+      scores: Array<{ sessionId: string; displayName: string; score: number }>;
+      nextRound: number | null;
+      nextSubmitter: { sessionId: string; displayName: string } | null;
+      gameEnded: boolean;
+      submitDeadline: string | null;
+      message: string;
+    }) => {
+      if (data.message) {
+        setNotification(data.message);
+        setTimeout(() => setNotification(null), 6000);
+      }
+
+      setState((prev) => {
+        if (!("room" in prev)) return prev;
+        if (
+          prev.phase !== "submit" &&
+          prev.phase !== "awaiting_statements" &&
+          prev.phase !== "scoreboard"
+        ) {
+          // Still apply live score chips if we're elsewhere.
+          const scored = {
+            ...prev.room,
+            players: prev.room.players.map((p) => {
+              const u = data.scores.find((s) => s.sessionId === p.sessionId);
+              return u ? { ...p, score: u.score } : p;
+            }),
+            submitDeadline: data.submitDeadline,
+            ...(data.nextRound != null ? { currentRound: data.nextRound } : {}),
+            ...(data.gameEnded ? { status: "finished" as const } : {}),
+          };
+          return { ...prev, room: scored } as PlayState;
+        }
+
+        const room: Room = {
+          ...prev.room,
+          players: prev.room.players.map((p) => {
+            const u = data.scores.find((s) => s.sessionId === p.sessionId);
+            return u ? { ...p, score: u.score } : p;
+          }),
+          submitDeadline: data.submitDeadline,
+          ...(data.nextRound != null ? { currentRound: data.nextRound } : {}),
+          ...(data.gameEnded ? { status: "finished" as const } : {}),
+        };
+
+        if (data.gameEnded) {
+          return {
+            phase: "scoreboard",
+            room,
+            sessionId: prev.sessionId,
+            isGameOver: true,
+            gameEndReason: "submit-timeout",
+            pendingRotation: null,
+          } as PlayState;
+        }
+
+        if (!data.nextSubmitter || data.nextRound == null) return prev;
+
+        const amISubmitter = data.nextSubmitter.sessionId === prev.sessionId;
+        if (amISubmitter) {
+          return {
+            phase: "submit",
+            room,
+            sessionId: prev.sessionId,
+          } as PlayState;
+        }
+        return {
+          phase: "awaiting_statements",
+          room,
+          sessionId: prev.sessionId,
+          submitterName: data.nextSubmitter.displayName,
+        } as PlayState;
+      });
+    };
+
+    /* ---- SUBMIT_WINDOW_STARTED ---- */
+    const handleSubmitWindowStarted = (data: {
+      submitDeadline: string;
+      roundNumber: number;
+    }) => {
+      setState((prev) => {
+        if (
+          prev.phase !== "submit" &&
+          prev.phase !== "awaiting_statements"
+        ) {
+          return prev;
+        }
+        if (prev.room.currentRound !== data.roundNumber) return prev;
+        return {
+          ...prev,
+          room: { ...prev.room, submitDeadline: data.submitDeadline },
+        } as PlayState;
+      });
+    };
+
     /* ---- PLAY_AGAIN_REQUESTED ---- */
     const handlePlayAgainRequested = (data: {
       initiatedBy: string;
@@ -830,6 +1123,8 @@ export default function PlayPage() {
     channel.bind(PUSHER_EVENTS.VOTE_CAST, handleVoteCast);
     channel.bind(PUSHER_EVENTS.ROUND_REVEALED, handleRoundRevealed);
     channel.bind(PUSHER_EVENTS.ROUND_ROTATED, handleRoundRotated);
+    channel.bind(PUSHER_EVENTS.SUBMIT_TIMED_OUT, handleSubmitTimedOut);
+    channel.bind(PUSHER_EVENTS.SUBMIT_WINDOW_STARTED, handleSubmitWindowStarted);
     channel.bind(PUSHER_EVENTS.GAME_ENDED, handleGameEnded);
     channel.bind(PUSHER_EVENTS.PLAYER_LEFT, handlePlayerLeft);
     channel.bind(PUSHER_EVENTS.PLAYER_JOINED, handlePlayerJoined);
@@ -840,6 +1135,8 @@ export default function PlayPage() {
       channel.unbind(PUSHER_EVENTS.VOTE_CAST, handleVoteCast);
       channel.unbind(PUSHER_EVENTS.ROUND_REVEALED, handleRoundRevealed);
       channel.unbind(PUSHER_EVENTS.ROUND_ROTATED, handleRoundRotated);
+      channel.unbind(PUSHER_EVENTS.SUBMIT_TIMED_OUT, handleSubmitTimedOut);
+      channel.unbind(PUSHER_EVENTS.SUBMIT_WINDOW_STARTED, handleSubmitWindowStarted);
       channel.unbind(PUSHER_EVENTS.GAME_ENDED, handleGameEnded);
       channel.unbind(PUSHER_EVENTS.PLAYER_LEFT, handlePlayerLeft);
       channel.unbind(PUSHER_EVENTS.PLAYER_JOINED, handlePlayerJoined);
@@ -903,7 +1200,7 @@ export default function PlayPage() {
         if (prev.phase !== "submit") return prev;
         return {
           phase: "awaiting_votes",
-          room: prev.room,
+          room: { ...prev.room, submitDeadline: null },
           round: json.round,
           sessionId: prev.sessionId,
           votes: [],
@@ -915,6 +1212,7 @@ export default function PlayPage() {
           allVotesIn: false,
           pendingReveal: null,
           pendingRotation: null,
+          pendingGameEnd: null,
         };
       });
     },
@@ -960,11 +1258,33 @@ export default function PlayPage() {
           allVotesIn: json.votesRemaining === 0,
           pendingReveal: null,
           pendingRotation: null,
+          pendingGameEnd: null,
         };
       });
     },
     [state, roomCode]
   );
+
+  /** Writing timer expired — ask server to penalize & rotate (idempotent). */
+  const handleSubmitTimeout = useCallback(async () => {
+    const current = stateRef.current;
+    if (
+      current.phase !== "submit" &&
+      current.phase !== "awaiting_statements"
+    ) {
+      return;
+    }
+
+    try {
+      await fetch("/api/round/submit-timeout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomCode }),
+      });
+    } catch {
+      // Another client may have reconciled already; Pusher will sync.
+    }
+  }, [roomCode]);
 
   const handleContinueFromResults = useCallback(() => {
     if (state.phase !== "awaiting_votes" || !state.pendingReveal) return;
@@ -977,6 +1297,7 @@ export default function PlayPage() {
       scoreDeltas: state.pendingReveal.scoreDeltas,
       scores: state.pendingReveal.scores,
       pendingRotation: state.pendingRotation,
+      pendingGameEnd: state.pendingGameEnd,
     });
   }, [state]);
 
@@ -1007,8 +1328,10 @@ export default function PlayPage() {
       room: state.room,
       sessionId: state.sessionId,
       isGameOver:
+        state.pendingGameEnd !== null ||
         state.room.status === "finished" ||
         state.round.roundNumber >= totalRounds,
+      gameEndReason: state.pendingGameEnd?.reason,
       pendingRotation: state.pendingRotation,
     });
   }, [state]);
@@ -1032,9 +1355,13 @@ export default function PlayPage() {
     }
 
     if (state.pendingRotation) {
-      const { nextRound, nextSubmitter } = state.pendingRotation;
+      const { nextRound, nextSubmitter, submitDeadline } = state.pendingRotation;
       const amISubmitter = nextSubmitter.sessionId === state.sessionId;
-      const updatedRoom = { ...state.room, currentRound: nextRound };
+      const updatedRoom = {
+        ...state.room,
+        currentRound: nextRound,
+        submitDeadline: submitDeadline ?? null,
+      };
 
       if (amISubmitter) {
         setState({
@@ -1223,7 +1550,12 @@ export default function PlayPage() {
         {state.phase === "submit" && (
           <div className="animate-fade-in-up space-y-6" key="submit">
             {renderHeader(state.room)}
-            <StatementForm onSubmit={handleSubmit} loading={false} />
+            <StatementForm
+              onSubmit={handleSubmit}
+              loading={false}
+              submitDeadline={state.room.submitDeadline}
+              onTimeout={handleSubmitTimeout}
+            />
           </div>
         )}
 
@@ -1240,6 +1572,8 @@ export default function PlayPage() {
                 submitterIndex={submitterIdx}
                 currentRound={state.room.currentRound}
                 totalRounds={state.room.players.length}
+                submitDeadline={state.room.submitDeadline}
+                onTimeout={handleSubmitTimeout}
               />
             </div>
           );
@@ -1314,14 +1648,14 @@ export default function PlayPage() {
                 avatarColor: p.avatarColor,
               }))}
             />
-            <div className="text-center">
-              <button
-                onClick={handleRevealContinue}
-                className="rounded-lg bg-truth px-8 py-3 font-semibold text-ink transition-opacity hover:opacity-90"
-              >
-                Continue
-              </button>
-            </div>
+            <RevealContinueButton
+              isFinal={
+                state.pendingGameEnd !== null ||
+                state.room.status === "finished" ||
+                state.round.roundNumber >= state.room.players.length
+              }
+              onContinue={handleRevealContinue}
+            />
           </div>
         )}
 

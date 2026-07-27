@@ -16,6 +16,7 @@ import { playingExpiresAt } from "@/lib/roomLifetime";
  * Starts a full waiting room — flips status to "playing", sets round to 1,
  * and broadcasts GAME_STARTED so all players in the lobby transition to
  * the game. Only works when every slot is filled by a connected player.
+ * Writing deadline starts later when clients open the writing UI.
  */
 export async function POST(
   request: NextRequest,
@@ -58,6 +59,7 @@ export async function POST(
         status: "playing",
         currentRound: 1,
         expiresAt: playingExpiresAt(),
+        submitDeadline: null,
       },
     },
     { new: true }

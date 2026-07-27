@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 /* ===================================================================
    StatementForm — write 3 statements and mark the lie.
@@ -12,11 +12,31 @@ interface StatementFormProps {
     lieIndex: 0 | 1 | 2
   ) => Promise<void>;
   loading: boolean;
+  submitDeadline?: string | null;
+  onTimeout?: () => void;
 }
 
 const MAX_LEN = 200;
 
-export default function StatementForm({ onSubmit, loading }: StatementFormProps) {
+function secondsUntil(deadlineIso: string | null | undefined): number | null {
+  if (!deadlineIso) return null;
+  const ms = Date.parse(deadlineIso) - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  return Math.max(0, Math.ceil(ms / 1000));
+}
+
+function formatTime(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+export default function StatementForm({
+  onSubmit,
+  loading,
+  submitDeadline = null,
+  onTimeout,
+}: StatementFormProps) {
   const [statements, setStatements] = useState<[string, string, string]>([
     "",
     "",
@@ -25,10 +45,42 @@ export default function StatementForm({ onSubmit, loading }: StatementFormProps)
   const [lieIndex, setLieIndex] = useState<0 | 1 | 2 | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [timer, setTimer] = useState<number | null>(() =>
+    secondsUntil(submitDeadline)
+  );
+  const timeoutFiredRef = useRef(false);
+
+  const urgent = timer !== null && timer <= 20;
+  const timeExpired = timer === 0;
+
+  useEffect(() => {
+    timeoutFiredRef.current = false;
+  }, [submitDeadline]);
+
+  useEffect(() => {
+    if (submitted || !submitDeadline) {
+      setTimer(secondsUntil(submitDeadline));
+      return;
+    }
+
+    const tick = () => {
+      const remaining = secondsUntil(submitDeadline);
+      setTimer(remaining);
+      if (remaining === 0 && onTimeout && !timeoutFiredRef.current) {
+        timeoutFiredRef.current = true;
+        onTimeout();
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [submitDeadline, submitted, onTimeout]);
 
   const canSubmit =
     !loading &&
     !submitted &&
+    !timeExpired &&
     statements.every((s) => s.trim().length > 0) &&
     lieIndex !== null;
 
@@ -88,6 +140,26 @@ export default function StatementForm({ onSubmit, loading }: StatementFormProps)
         <p className="text-sm text-muted">
           Write two truths and one lie. Mark the lie.
         </p>
+
+        <div
+          className={
+            "mx-auto inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-lg tabular-nums " +
+            (urgent
+              ? "border-lie/50 bg-lie/10 text-lie"
+              : "border-border bg-field text-warm")
+          }
+          aria-label={
+            timer === null
+              ? "Timer starting"
+              : `${timer} seconds remaining`
+          }
+        >
+          <span className="text-[0.65rem] uppercase tracking-widest text-muted">
+            Time
+          </span>
+          {timer === null ? "2:00" : formatTime(timer)}
+        </div>
+
         <div className="flex items-center justify-center gap-2" aria-hidden="true">
           {[0, 1, 2].map((i) => {
             const filled = statements[i].trim().length > 0;
@@ -109,86 +181,95 @@ export default function StatementForm({ onSubmit, loading }: StatementFormProps)
         <hr className="polygraph-line !my-1" />
       </header>
 
-      <div className="space-y-4">
-        {statements.map((stmt, i) => {
-          const isLie = lieIndex === i;
-          return (
-            <div
-              key={i}
-              className={
-                "interrogation-card space-y-2 transition-colors duration-200 " +
-                (isLie ? "!border-lie/45" : "")
-              }
-            >
-              <div className="flex items-start justify-between gap-3">
-                <label
+      {timeExpired ? (
+        <div className="interrogation-card text-center space-y-2">
+          <p className="font-serif text-lg font-semibold text-lie">Time&apos;s up</p>
+          <p className="text-sm text-muted">Closing this writing turn…</p>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-4">
+            {statements.map((stmt, i) => {
+              const isLie = lieIndex === i;
+              return (
+                <div
+                  key={i}
                   className={
-                    "text-xs font-mono uppercase tracking-widest " +
-                    (isLie ? "text-lie" : "text-muted")
+                    "interrogation-card space-y-2 transition-colors duration-200 " +
+                    (isLie ? "!border-lie/45" : "")
                   }
-                  htmlFor={`stmt-${i}`}
                 >
-                  Statement {i + 1}
-                </label>
-                <span className="text-xs text-muted">
-                  {stmt.length}/{MAX_LEN}
-                </span>
-              </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <label
+                      className={
+                        "text-xs font-mono uppercase tracking-widest " +
+                        (isLie ? "text-lie" : "text-muted")
+                      }
+                      htmlFor={`stmt-${i}`}
+                    >
+                      Statement {i + 1}
+                    </label>
+                    <span className="text-xs text-muted">
+                      {stmt.length}/{MAX_LEN}
+                    </span>
+                  </div>
 
-              <textarea
-                id={`stmt-${i}`}
-                value={stmt}
-                onChange={(e) => handleChange(i, e.target.value)}
-                placeholder={
-                  i === 0
-                    ? "I once met a celebrity in an airport…"
-                    : i === 1
-                      ? "I have never broken a bone…"
-                      : "I lived in three countries before turning 18…"
-                }
-                rows={3}
-                maxLength={MAX_LEN}
-                disabled={loading}
-                className="w-full resize-none rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm text-warm placeholder:text-muted focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
-              />
+                  <textarea
+                    id={`stmt-${i}`}
+                    value={stmt}
+                    onChange={(e) => handleChange(i, e.target.value)}
+                    placeholder={
+                      i === 0
+                        ? "I once met a celebrity in an airport…"
+                        : i === 1
+                          ? "I have never broken a bone…"
+                          : "I lived in three countries before turning 18…"
+                    }
+                    rows={3}
+                    maxLength={MAX_LEN}
+                    disabled={loading}
+                    className="w-full resize-none rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm text-warm placeholder:text-muted focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
+                  />
 
-              <label
-                className={
-                  "inline-flex cursor-pointer items-center gap-2 transition-colors " +
-                  (isLie ? "text-lie" : "text-muted hover:text-warm")
-                }
-              >
-                <input
-                  type="radio"
-                  name="lieIndex"
-                  checked={isLie}
-                  onChange={() => setLieIndex(i as 0 | 1 | 2)}
-                  disabled={loading}
-                  className="accent-lie"
-                />
-                <span className="text-sm">
-                  {isLie ? "This is the lie" : "Mark as the lie"}
-                </span>
-              </label>
-            </div>
-          );
-        })}
-      </div>
+                  <label
+                    className={
+                      "inline-flex cursor-pointer items-center gap-2 transition-colors " +
+                      (isLie ? "text-lie" : "text-muted hover:text-warm")
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="lieIndex"
+                      checked={isLie}
+                      onChange={() => setLieIndex(i as 0 | 1 | 2)}
+                      disabled={loading}
+                      className="accent-lie"
+                    />
+                    <span className="text-sm">
+                      {isLie ? "This is the lie" : "Mark as the lie"}
+                    </span>
+                  </label>
+                </div>
+              );
+            })}
+          </div>
 
-      {error && (
-        <p className="text-center text-sm text-lie" role="alert">
-          {error}
-        </p>
+          {error && (
+            <p className="text-center text-sm text-lie" role="alert">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="w-full rounded-lg bg-truth py-3 font-semibold text-ink transition-opacity hover:opacity-90 disabled:opacity-30"
+          >
+            {loading ? "Submitting…" : "Submit statements"}
+          </button>
+        </>
       )}
-
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className="w-full rounded-lg bg-truth py-3 font-semibold text-ink transition-opacity hover:opacity-90 disabled:opacity-30"
-      >
-        {loading ? "Submitting…" : "Submit statements"}
-      </button>
     </div>
   );
 }

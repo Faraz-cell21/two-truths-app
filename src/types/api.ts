@@ -92,3 +92,24 @@ export interface RoundGetSuccessResponse {
 }
 
 export type RoundGetResponse = RoundGetSuccessResponse | { error: string };
+
+// ============================================================
+// Round — submit timeout
+// ============================================================
+
+export interface SubmitTimeoutSuccessResponse {
+  timedOut: true;
+  timedOutSessionId: string;
+  timedOutDisplayName: string;
+  scores: Array<{ sessionId: string; displayName: string; score: number }>;
+  nextRound: number | null;
+  nextSubmitter: { sessionId: string; displayName: string } | null;
+  gameEnded: boolean;
+  submitDeadline: string | null;
+  message: string;
+}
+
+export type SubmitTimeoutResponse =
+  | SubmitTimeoutSuccessResponse
+  | { timedOut: false }
+  | { error: string };

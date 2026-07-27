@@ -120,6 +120,7 @@ async function addPlayerToRoom(
           status: "playing",
           currentRound: 1,
           expiresAt: playingExpiresAt(now),
+          submitDeadline: null,
         },
       },
       { new: true }

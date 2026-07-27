@@ -3,7 +3,8 @@ import { connectToDatabase } from "@/lib/db/mongodb";
 import { RoomModel } from "@/models/Room";
 import { RoundModel } from "@/models/Round";
 import { serializeRoundPublicView } from "@/lib/serializeRound";
-import { computeVoteDeadline } from "@/lib/gameTiming";
+import { computeVoteDeadline, isSubmitDeadlinePassed } from "@/lib/gameTiming";
+import { reconcileSubmitDeadline } from "@/lib/reconcileSubmitDeadline";
 import {
   pusherServer,
   getRoomChannelName,
@@ -93,6 +94,38 @@ export async function POST(
   }
 
   const now = new Date();
+
+  // Claim the writing window before creating the round so a concurrent
+  // timeout cannot also penalize this turn.
+  if (isSubmitDeadlinePassed(room.submitDeadline as Date | null | undefined, now)) {
+    await reconcileSubmitDeadline(roomCode, room);
+    return NextResponse.json(
+      { error: "Writing time expired." },
+      { status: 409 }
+    );
+  }
+
+  const claimed = await RoomModel.findOneAndUpdate(
+    {
+      roomCode,
+      status: "playing",
+      currentRound: roundNumber,
+      ...(room.submitDeadline
+        ? { submitDeadline: { $gt: now } }
+        : {}),
+    },
+    { $set: { submitDeadline: null } },
+    { new: true }
+  ).lean();
+
+  if (!claimed) {
+    await reconcileSubmitDeadline(roomCode);
+    return NextResponse.json(
+      { error: "Writing time expired." },
+      { status: 409 }
+    );
+  }
+
   const voteDeadline = computeVoteDeadline(now);
 
   // ---- Create round (idempotent via unique compound index) ----

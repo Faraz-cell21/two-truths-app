@@ -8,6 +8,7 @@ import {
   isExpired,
 } from "@/lib/roomLifetime";
 import { reconcileAbandonedRoom } from "@/lib/reconcileAbandonedRoom";
+import { reconcileSubmitDeadline } from "@/lib/reconcileSubmitDeadline";
 
 /**
  * GET /api/room/:code
@@ -16,7 +17,9 @@ import { reconcileAbandonedRoom } from "@/lib/reconcileAbandonedRoom";
  * load and for reconnection after a page refresh.
  *
  * Waiting lobbies past expiresAt are deleted permanently (410).
- * Also reconciles an expired reconnect-grace abandon into finished.
+ * Also reconciles an expired reconnect-grace abandon into finished,
+ * and an expired writing window into a skipped turn.
+ * Does NOT start a new writing clock — that happens via begin-submit.
  */
 export async function GET(
   request: NextRequest,
@@ -46,6 +49,12 @@ export async function GET(
   const abandoned = await reconcileAbandonedRoom(roomCode, room);
   if (abandoned) {
     room = abandoned.room;
+  }
+
+  if (room.status === "playing") {
+    await reconcileSubmitDeadline(roomCode);
+    const refreshed = await RoomModel.findOne({ roomCode }).lean();
+    if (refreshed) room = refreshed;
   }
 
   if (isExpired(room.expiresAt as Date)) {

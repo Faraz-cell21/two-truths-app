@@ -21,6 +21,8 @@ export interface Room {
   players: Player[];
   createdAt: string;
   expiresAt: string;
+  /** ISO timestamp — writing closes at this server-authored deadline. */
+  submitDeadline?: string | null;
 }
 
 export interface Vote {

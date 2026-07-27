@@ -37,6 +37,11 @@ const RoomSchema = new Schema(
      * at this time so a quick refresh doesn't kill the room.
      */
     abandonDeadline: { type: Date, default: null },
+    /**
+     * Server-authored deadline for the current writer. Cleared when statements
+     * are submitted or the turn times out. Absolute timestamp — survives refresh.
+     */
+    submitDeadline: { type: Date, default: null },
   },
   {
     timestamps: false,

@@ -47,6 +47,7 @@ async function finishPlayingRoom(
         status: "finished",
         expiresAt: finishedExpiresAt(),
         abandonDeadline: null,
+        submitDeadline: null,
       },
     },
     { new: true }

@@ -85,7 +85,8 @@ export async function performReveal(
     }
   }
 
-  // Advance round or finish game
+  // Advance round or finish game. Writing deadline starts when clients
+  // open the next writing UI — not during reveal / scoreboard.
   if (gameEnded) {
     bulkOps.push({
       updateOne: {
@@ -94,6 +95,7 @@ export async function performReveal(
           $set: {
             status: "finished",
             expiresAt: finishedExpiresAt(),
+            submitDeadline: null,
           },
         },
       },
@@ -102,7 +104,12 @@ export async function performReveal(
     bulkOps.push({
       updateOne: {
         filter: { roomCode },
-        update: { $set: { currentRound: roundNumber + 1 } },
+        update: {
+          $set: {
+            currentRound: roundNumber + 1,
+            submitDeadline: null,
+          },
+        },
       },
     });
   }
@@ -158,6 +165,7 @@ export async function performReveal(
     await pusherServer.trigger(channel, PUSHER_EVENTS.ROUND_ROTATED, {
       nextRound: roundNumber + 1,
       nextSubmitter,
+      submitDeadline: null,
     });
   }
 

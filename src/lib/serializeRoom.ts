@@ -23,6 +23,7 @@ export interface LeanRoomDocument {
   createdAt: Date;
   expiresAt: Date;
   abandonDeadline?: Date | null;
+  submitDeadline?: Date | null;
 }
 
 /**
@@ -51,5 +52,8 @@ export function serializeRoom(doc: LeanRoomDocument): Room {
     })),
     createdAt: doc.createdAt.toISOString(),
     expiresAt: doc.expiresAt.toISOString(),
+    submitDeadline: doc.submitDeadline
+      ? new Date(doc.submitDeadline).toISOString()
+      : null,
   };
 }

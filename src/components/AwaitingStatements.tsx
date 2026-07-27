@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import PlayerAvatar from "@/components/PlayerAvatar";
 
 /* ===================================================================
@@ -13,6 +13,21 @@ interface AwaitingStatementsProps {
   submitterIndex?: number;
   currentRound: number;
   totalRounds: number;
+  submitDeadline?: string | null;
+  onTimeout?: () => void;
+}
+
+function secondsUntil(deadlineIso: string | null | undefined): number | null {
+  if (!deadlineIso) return null;
+  const ms = Date.parse(deadlineIso) - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  return Math.max(0, Math.ceil(ms / 1000));
+}
+
+function formatTime(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export default function AwaitingStatements({
@@ -21,8 +36,15 @@ export default function AwaitingStatements({
   submitterIndex = 0,
   currentRound,
   totalRounds,
+  submitDeadline = null,
+  onTimeout,
 }: AwaitingStatementsProps) {
   const [activeSlot, setActiveSlot] = useState(0);
+  const [timer, setTimer] = useState<number | null>(() =>
+    secondsUntil(submitDeadline)
+  );
+  const timeoutFiredRef = useRef(false);
+  const urgent = timer !== null && timer <= 20;
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -31,14 +53,39 @@ export default function AwaitingStatements({
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    timeoutFiredRef.current = false;
+  }, [submitDeadline]);
+
+  useEffect(() => {
+    if (!submitDeadline) {
+      setTimer(null);
+      return;
+    }
+
+    const tick = () => {
+      const remaining = secondsUntil(submitDeadline);
+      setTimer(remaining);
+      if (remaining === 0 && onTimeout && !timeoutFiredRef.current) {
+        timeoutFiredRef.current = true;
+        onTimeout();
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [submitDeadline, onTimeout]);
+
   return (
     <div className="interrogation-card relative overflow-hidden space-y-5">
       <div
         className="pointer-events-none absolute inset-0 opacity-45"
         aria-hidden="true"
         style={{
-          background:
-            "radial-gradient(ellipse 75% 55% at 50% 0%, color-mix(in srgb, var(--theme-truth) 18%, transparent), transparent 70%)",
+          background: urgent
+            ? "radial-gradient(ellipse 75% 55% at 50% 0%, color-mix(in srgb, var(--theme-lie) 18%, transparent), transparent 70%)"
+            : "radial-gradient(ellipse 75% 55% at 50% 0%, color-mix(in srgb, var(--theme-truth) 18%, transparent), transparent 70%)",
         }}
       />
 
@@ -63,6 +110,25 @@ export default function AwaitingStatements({
           <p className="max-w-xs text-sm text-muted">
             Two truths and a lie are on the way.
           </p>
+
+          <div
+            className={
+              "inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-base tabular-nums " +
+              (urgent
+                ? "border-lie/50 bg-lie/10 text-lie"
+                : "border-border bg-field/60 text-warm")
+            }
+            aria-label={
+              timer === null
+                ? "Timer starting"
+                : `${timer} seconds remaining`
+            }
+          >
+            <span className="text-[0.65rem] uppercase tracking-widest text-muted">
+              Time left
+            </span>
+            {timer === null ? "2:00" : formatTime(timer)}
+          </div>
         </header>
 
         <hr className="polygraph-line !my-0" />

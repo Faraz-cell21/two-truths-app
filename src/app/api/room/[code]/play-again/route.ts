@@ -113,6 +113,8 @@ export async function POST(
         "players.$[].score": 0,
         "players.$[].connected": false,
         expiresAt: lobbyExpiresAt(mode),
+        submitDeadline: null,
+        abandonDeadline: null,
       },
     },
     { new: true }

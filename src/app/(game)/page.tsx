@@ -325,33 +325,43 @@ export default function HomePage() {
               ? "Creating room…"
               : "Create private room"}
           </button>
+        </section>
 
-          {/* ---- Join by code ---- */}
-          <div className="space-y-3 pt-2">
-            <p className="text-sm text-muted">
-              Already have a code? Enter it below.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={roomCode}
-                onChange={(e) => {
-                  setRoomCode(e.target.value.toUpperCase());
-                  if (state.phase === "error") setState({ phase: "idle" });
-                }}
-                placeholder="BLUE-FOX-42"
-                maxLength={14}
-                className="flex-1 rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm uppercase text-warm placeholder:text-muted focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
-                disabled={isLoading}
-              />
-              <button
-                onClick={() => join("join-private")}
-                disabled={isLoading || !roomCode.trim()}
-                className="rounded-lg bg-card border border-border px-5 py-3 font-semibold text-warm transition-colors hover:border-muted disabled:opacity-40"
-              >
-                Join
-              </button>
-            </div>
+        {/* ---- Divider ---- */}
+        <div className="flex items-center gap-4">
+          <hr className="flex-1 border-border" />
+          <span className="text-xs uppercase tracking-widest text-muted">or</span>
+          <hr className="flex-1 border-border" />
+        </div>
+
+        {/* ---- Join by code ---- */}
+        <section className="interrogation-card space-y-4">
+          <h2 className="font-serif text-lg font-semibold text-warm">
+            Join with a code
+          </h2>
+          <p className="text-sm text-muted">
+            Already have a code? Enter it below — no need to pick a room size.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={roomCode}
+              onChange={(e) => {
+                setRoomCode(e.target.value.toUpperCase());
+                if (state.phase === "error") setState({ phase: "idle" });
+              }}
+              placeholder="BLUE-FOX-42"
+              maxLength={14}
+              className="flex-1 rounded-lg border border-border bg-field px-4 py-3 font-mono text-sm uppercase text-warm placeholder:text-muted focus:border-truth focus:outline-none focus:ring-1 focus:ring-truth transition-colors"
+              disabled={isLoading}
+            />
+            <button
+              onClick={() => join("join-private")}
+              disabled={isLoading || !roomCode.trim()}
+              className="rounded-lg bg-card border border-border px-5 py-3 font-semibold text-warm transition-colors hover:border-muted disabled:opacity-40"
+            >
+              Join
+            </button>
           </div>
         </section>
 
@@ -372,7 +382,8 @@ export default function HomePage() {
             <p>
               <span className="font-semibold text-warm">2. Each round,</span>{" "}
               one player writes three statements: two truths and one lie.
-              Mark the lie before submitting.
+              Mark the lie before submitting. Writers have 2 minutes —
+              running out of time costs 1 point (scores never go below 0).
             </p>
             <p>
               <span className="font-semibold text-warm">3. Everyone else</span>{" "}

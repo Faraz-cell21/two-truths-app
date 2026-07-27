@@ -40,6 +40,8 @@ export const PUSHER_EVENTS = {
   VOTE_CAST: "vote-cast",
   ROUND_REVEALED: "round-revealed",
   ROUND_ROTATED: "round-rotated",
+  SUBMIT_TIMED_OUT: "submit-timed-out",
+  SUBMIT_WINDOW_STARTED: "submit-window-started",
   GAME_ENDED: "game-ended",
   PLAY_AGAIN_REQUESTED: "play-again-requested",
 } as const;

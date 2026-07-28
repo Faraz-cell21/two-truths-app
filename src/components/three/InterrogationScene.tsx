@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Float, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import { useGameScene } from "@/components/three/GameSceneContext";
@@ -41,7 +41,8 @@ const IDLE_CARDS: CardSpec[] = [
   },
 ];
 
-function useSmoothed(target: number, speed = 0.06) {
+/** Lerp factors are per-frame, so they are tuned for the 30fps render budget. */
+function useSmoothed(target: number, speed = 0.11) {
   const current = useRef(target);
   useFrame(() => {
     current.current = THREE.MathUtils.lerp(current.current, target, speed);
@@ -63,10 +64,8 @@ function Room({
       {/* Back wall */}
       <mesh position={[0, 1.2, -4.2]}>
         <planeGeometry args={[16, 10]} />
-        <meshStandardMaterial
+        <meshLambertMaterial
           color={wall}
-          roughness={0.95}
-          metalness={0}
           transparent
           opacity={isLight ? 0.55 : 0.9}
         />
@@ -74,30 +73,21 @@ function Room({
       {/* Floor */}
       <mesh position={[0, -2.2, -1]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[16, 10]} />
-        <meshStandardMaterial
+        <meshLambertMaterial
           color={floor}
-          roughness={0.9}
-          metalness={0.05}
           transparent
           opacity={isLight ? 0.45 : 0.85}
         />
       </mesh>
-      {/* Desk */}
+      {/* Desk — dark-mode albedo has to carry itself now that the spotlight
+          that used to pool light here is gone. */}
       <mesh position={[0, -1.55, 0.4]}>
         <boxGeometry args={[5.2, 0.12, 2.2]} />
-        <meshStandardMaterial
-          color={isLight ? "#8b7355" : "#2a221c"}
-          roughness={0.7}
-          metalness={0.1}
-        />
+        <meshLambertMaterial color={isLight ? "#8b7355" : "#5c4a38"} />
       </mesh>
       <mesh position={[0, -1.85, 0.4]}>
         <boxGeometry args={[4.8, 0.5, 1.9]} />
-        <meshStandardMaterial
-          color={isLight ? "#6f5a42" : "#1c1713"}
-          roughness={0.85}
-          metalness={0}
-        />
+        <meshLambertMaterial color={isLight ? "#6f5a42" : "#3d3128"} />
       </mesh>
     </group>
   );
@@ -112,7 +102,7 @@ function WindowBlinds({
   intensity: number;
 }) {
   const group = useRef<THREE.Group>(null);
-  const strength = useSmoothed(intensity, 0.05);
+  const strength = useSmoothed(intensity, 0.1);
 
   useFrame((state) => {
     if (!group.current) return;
@@ -148,18 +138,20 @@ function WindowBlinds({
 function DeskLamp({
   glow,
   intensity,
+  isLight,
 }: {
   glow: string;
   intensity: number;
+  isLight: boolean;
 }) {
   const bulb = useRef<THREE.Mesh>(null);
-  const strength = useSmoothed(intensity, 0.05);
+  const strength = useSmoothed(intensity, 0.1);
 
   useFrame((state) => {
     if (!bulb.current) return;
     const flicker =
       0.85 + Math.sin(state.clock.elapsedTime * 2.4) * 0.04 * strength.current;
-    const mat = bulb.current.material as THREE.MeshStandardMaterial;
+    const mat = bulb.current.material as THREE.MeshLambertMaterial;
     mat.emissiveIntensity = 1.2 * flicker * (0.5 + strength.current);
   });
 
@@ -168,27 +160,27 @@ function DeskLamp({
       {/* Base */}
       <mesh position={[0, 0.05, 0]}>
         <cylinderGeometry args={[0.22, 0.28, 0.08, 20]} />
-        <meshStandardMaterial color="#1a1a1c" roughness={0.4} metalness={0.6} />
+        <meshLambertMaterial color={isLight ? "#1a1a1c" : "#4a4a54"} />
       </mesh>
       {/* Arm */}
       <mesh position={[-0.15, 0.45, 0]} rotation={[0, 0, 0.35]}>
         <cylinderGeometry args={[0.035, 0.035, 0.9, 10]} />
-        <meshStandardMaterial color="#2a2a2e" roughness={0.35} metalness={0.7} />
+        <meshLambertMaterial color={isLight ? "#2a2a2e" : "#5e5e6a"} />
       </mesh>
-      {/* Shade */}
+      {/* Shade — emissive stands in for the bulb spill it should be catching. */}
       <mesh position={[-0.42, 0.95, 0]} rotation={[0.4, 0, -0.5]}>
         <coneGeometry args={[0.32, 0.38, 24, 1, true]} />
-        <meshStandardMaterial
-          color="#3a342c"
-          roughness={0.6}
-          metalness={0.2}
+        <meshLambertMaterial
+          color={isLight ? "#3a342c" : "#b3a894"}
+          emissive={glow}
+          emissiveIntensity={isLight ? 0.05 : 0.25}
           side={THREE.DoubleSide}
         />
       </mesh>
       {/* Bulb */}
       <mesh ref={bulb} position={[-0.42, 0.82, 0.05]}>
         <sphereGeometry args={[0.08, 16, 16]} />
-        <meshStandardMaterial
+        <meshLambertMaterial
           color={glow}
           emissive={glow}
           emissiveIntensity={1.2}
@@ -196,21 +188,13 @@ function DeskLamp({
           opacity={0.95}
         />
       </mesh>
+      {/* Single point light stands in for the old point + spot pair. */}
       <pointLight
         color={glow}
-        intensity={2.2}
-        distance={7}
+        intensity={3.2}
+        distance={8}
         decay={2}
         position={[-0.42, 0.75, 0.1]}
-      />
-      <spotLight
-        color={glow}
-        intensity={2.8}
-        angle={0.6}
-        penumbra={0.75}
-        distance={8}
-        position={[-0.35, 1.0, 0.3]}
-        rotation={[-0.9, 0.2, 0]}
       />
     </group>
   );
@@ -235,7 +219,7 @@ function GameCard({
         : colors.muted;
 
   const group = useRef<THREE.Group>(null);
-  const energyRef = useSmoothed(energy, 0.07);
+  const energyRef = useSmoothed(energy, 0.13);
 
   useFrame((state) => {
     if (!group.current) return;
@@ -256,25 +240,19 @@ function GameCard({
       floatIntensity={spec.floatIntensity * (0.6 + energy * 0.6)}
     >
       <group ref={group} position={spec.position} rotation={spec.rotation}>
-        {/* Card body */}
-        <RoundedBox args={[1.35, 1.85, 0.06]} radius={0.08} smoothness={4}>
-          <meshStandardMaterial
+        {/* Card body — emissive carries the rim glow that a per-card
+            point light used to provide. */}
+        <RoundedBox args={[1.35, 1.85, 0.06]} radius={0.08} smoothness={1}>
+          <meshLambertMaterial
             color={colors.face}
-            roughness={0.45}
-            metalness={0.05}
             emissive={accent}
-            emissiveIntensity={highlight && spec.accent === "lie" ? 0.25 : 0.06}
+            emissiveIntensity={highlight && spec.accent === "lie" ? 0.5 : 0.18}
           />
         </RoundedBox>
         {/* Accent stripe — reads as a game card, not a primitive */}
         <mesh position={[0, 0.72, 0.035]}>
           <planeGeometry args={[1.05, 0.12]} />
-          <meshStandardMaterial
-            color={accent}
-            emissive={accent}
-            emissiveIntensity={0.55}
-            roughness={0.4}
-          />
+          <meshBasicMaterial color={accent} />
         </mesh>
         {/* Fake “text lines” on the card */}
         {[0.25, 0.05, -0.15, -0.35].map((y, i) => (
@@ -287,13 +265,6 @@ function GameCard({
             />
           </mesh>
         ))}
-        {/* Soft rim light feel */}
-        <pointLight
-          color={accent}
-          intensity={0.35 + energy * 0.5}
-          distance={2.5}
-          position={[0, 0, 0.4]}
-        />
       </group>
     </Float>
   );
@@ -360,20 +331,20 @@ function CardTable({
 
 /** Tiny paper scraps on the desk — sells the “case file” game fantasy. */
 function DeskPapers({ isLight }: { isLight: boolean }) {
-  const paper = isLight ? "#efe8dc" : "#2c2a26";
+  const paper = isLight ? "#efe8dc" : "#b8b0a0";
   return (
     <group position={[0, -1.46, 0.55]}>
       <mesh position={[-1.1, 0.02, 0.15]} rotation={[-Math.PI / 2, 0, 0.2]}>
         <planeGeometry args={[0.9, 1.15]} />
-        <meshStandardMaterial color={paper} roughness={0.9} />
+        <meshLambertMaterial color={paper} />
       </mesh>
       <mesh position={[-0.85, 0.03, -0.1]} rotation={[-Math.PI / 2, 0, -0.35]}>
         <planeGeometry args={[0.7, 0.95]} />
-        <meshStandardMaterial color={paper} roughness={0.9} />
+        <meshLambertMaterial color={paper} />
       </mesh>
       <mesh position={[0.35, 0.02, 0.05]} rotation={[-Math.PI / 2, 0, 0.08]}>
         <planeGeometry args={[1.1, 0.7]} />
-        <meshStandardMaterial color={paper} roughness={0.85} />
+        <meshLambertMaterial color={paper} />
       </mesh>
     </group>
   );
@@ -408,7 +379,7 @@ function SceneContent() {
         isLight={isLight}
       />
       <WindowBlinds color={palette.truth} intensity={energy} />
-      <DeskLamp glow={palette.truth} intensity={energy} />
+      <DeskLamp glow={palette.truth} intensity={energy} isLight={isLight} />
       <DeskPapers isLight={isLight} />
       <CardTable
         palette={palette}
@@ -421,6 +392,37 @@ function SceneContent() {
   );
 }
 
+/**
+ * Drives the render loop at a fixed rate instead of the display refresh.
+ * This is a decorative background, so half the frames buys roughly half the
+ * GPU cost with no perceptible difference. Requires frameloop="demand" —
+ * throttling inside useFrame would skip the animation math but still draw.
+ */
+function FrameLimiter({ fps, paused }: { fps: number; paused: boolean }) {
+  const invalidate = useThree((state) => state.invalidate);
+
+  useEffect(() => {
+    if (paused) return;
+
+    const interval = 1000 / fps;
+    let frame = 0;
+    let last = 0;
+
+    const loop = (time: number) => {
+      frame = requestAnimationFrame(loop);
+      if (time - last >= interval) {
+        last = time;
+        invalidate();
+      }
+    };
+
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
+  }, [fps, paused, invalidate]);
+
+  return null;
+}
+
 export default function InterrogationScene({
   paused,
 }: {
@@ -430,10 +432,11 @@ export default function InterrogationScene({
     <Canvas
       className="pointer-events-none h-full w-full"
       camera={{ position: [0, 0.35, 5.4], fov: 42 }}
-      dpr={[1, 1.6]}
-      frameloop={paused ? "never" : "always"}
-      gl={{ alpha: false, antialias: true, powerPreference: "high-performance" }}
+      dpr={1}
+      frameloop="demand"
+      gl={{ alpha: false, antialias: false, powerPreference: "high-performance" }}
     >
+      <FrameLimiter fps={30} paused={paused} />
       <SceneContent />
     </Canvas>
   );

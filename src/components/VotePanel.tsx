@@ -246,7 +246,7 @@ export default function VotePanel({
 
   return (
     <div className="space-y-5">
-      <header className="relative overflow-hidden rounded-2xl border border-border/80 bg-card/40 px-4 py-5 text-center backdrop-blur-sm sm:px-6">
+      <header className="relative overflow-hidden rounded-2xl border border-border/80 bg-card/70 px-4 py-5 text-center sm:px-6">
         <div
           className="pointer-events-none absolute inset-0 opacity-50"
           aria-hidden="true"

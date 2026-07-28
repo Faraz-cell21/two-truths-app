@@ -128,8 +128,6 @@ textarea,
   border: 1px solid color-mix(in srgb, var(--theme-truth) 28%, var(--theme-border));
   border-radius: 0.85rem;
   padding: 1.5rem;
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
   box-shadow:
     0 1px 0 color-mix(in srgb, var(--theme-truth) 18%, transparent),
     0 14px 40px color-mix(in srgb, #000 28%, transparent);
@@ -378,8 +376,6 @@ textarea,
   background: color-mix(in srgb, var(--theme-card) 92%, transparent);
   color: var(--theme-muted);
   cursor: pointer;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   transition: all 0.2s ease;
 }
 .theme-toggle:hover {

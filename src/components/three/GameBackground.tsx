@@ -21,25 +21,28 @@ export default function GameBackground() {
     const handleVisibility = () => setPaused(document.hidden);
     document.addEventListener("visibilitychange", handleVisibility);
 
-    document.body.style.background = "transparent";
-
     return () => {
       motionQuery.removeEventListener("change", updateEnabled);
       document.removeEventListener("visibilitychange", handleVisibility);
-      document.body.style.background = "";
     };
   }, []);
 
-  if (!enabled) {
-    return null;
-  }
+  // The canvas paints its own opaque background (gl alpha: false), so the body
+  // may only go transparent while the canvas is actually mounted — otherwise
+  // the page falls through to the browser's default white.
+  useEffect(() => {
+    document.body.style.background = enabled ? "transparent" : "";
+    return () => {
+      document.body.style.background = "";
+    };
+  }, [enabled]);
 
   return (
     <div
       aria-hidden
       className="pointer-events-none fixed inset-0 z-0 h-dvh w-full overflow-hidden"
     >
-      <InterrogationScene paused={paused} />
+      {enabled && <InterrogationScene paused={paused} />}
       <div className="game-bg-overlay absolute inset-0" />
     </div>
   );

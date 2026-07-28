@@ -15,45 +15,33 @@ import { finishedExpiresAt } from "@/lib/roomLifetime";
  * the last vote triggers an auto-reveal) and by the /api/round/reveal
  * route (manual / timer-based reveal).
  *
- * Idempotent: if the round is already revealed, returns the existing
- * result immediately instead of re-scoring.
+ * Scoring runs exactly once per round. When the vote timer expires every
+ * connected client posts a reveal simultaneously, so the caller that gets to
+ * apply the score increments is decided by an atomic claim on revealedAt
+ * rather than by a read-then-write check. Losers report current state.
  */
 export async function performReveal(
   roomCode: string,
   roundNumber: number
 ): Promise<RevealSuccessResponse | { error: string; status: number }> {
-  // 1. Fetch round
-  const round = await RoundModel.findOne({ roomCode, roundNumber }).lean();
-  if (!round) {
+  // 1. Fetch round — distinguishes "no such round" from "lost the claim".
+  const existing = await RoundModel.findOne({ roomCode, roundNumber }).lean();
+  if (!existing) {
     return { error: "Round not found.", status: 404 };
   }
 
-  // 2. Idempotency — already revealed
-  if (round.revealedAt) {
-    const room = await RoomModel.findOne({ roomCode }).lean();
-    if (!room) return { error: "Room not found.", status: 404 };
+  // 2. Claim the reveal. Only one caller can flip revealedAt from null, and
+  //    the score write below uses $inc, which would multiply if it ever ran
+  //    twice for the same round.
+  const round = await RoundModel.findOneAndUpdate(
+    { roomCode, roundNumber, revealedAt: null },
+    { $set: { revealedAt: new Date() } },
+    { new: true }
+  ).lean();
 
-    const scoreDeltas = computeScoreDeltas(round, room.players as Array<{ sessionId: string; displayName: string }>);
-    const totalRounds = room.players.length;
-    const gameEnded = roundNumber >= totalRounds;
-
-    return {
-      round: serializeRound(round),
-      scoreDeltas,
-      scores: (room.players as Array<{ sessionId: string; displayName: string; score: number }>).map((p) => ({
-        sessionId: p.sessionId,
-        displayName: p.displayName,
-        score: p.score,
-      })),
-      nextRound: gameEnded ? null : roundNumber + 1,
-      nextSubmitter: gameEnded
-        ? null
-        : {
-            sessionId: room.players[roundNumber % room.players.length].sessionId,
-            displayName: room.players[roundNumber % room.players.length].displayName,
-          },
-      gameEnded,
-    };
+  if (!round) {
+    // Already revealed, or another caller won the race — never re-score.
+    return buildRevealedResult(roomCode, roundNumber);
   }
 
   // 3. Fetch room
@@ -118,13 +106,8 @@ export async function performReveal(
     await RoomModel.bulkWrite(bulkOps);
   }
 
-  // 6. Mark round as revealed
-  await RoundModel.updateOne(
-    { roomCode, roundNumber },
-    { $set: { revealedAt: new Date() } }
-  );
-
-  // 7. Re-fetch room for current scores
+  // 6. Re-fetch room for current scores (revealedAt was already set by the
+  //    claim in step 2).
   const updatedRoom = await RoomModel.findOne({ roomCode }).lean();
   const scores: Array<{ sessionId: string; displayName: string; score: number }> = updatedRoom
     ? (updatedRoom.players as Array<{ sessionId: string; displayName: string; score: number }>).map((p) => ({
@@ -138,7 +121,7 @@ export async function performReveal(
         score: p.score + (scoreDeltas.find((d) => d.sessionId === p.sessionId)?.delta ?? 0),
       }));
 
-  // 8. Fire Pusher events
+  // 7. Fire Pusher events
   const channel = getRoomChannelName(roomCode);
   const fullRound = serializeRound(round);
 
@@ -180,6 +163,49 @@ export async function performReveal(
 }
 
 /* ------------------------------------------------------------------ */
+
+/**
+ * Read-only view of an already-revealed round, for callers that lost the
+ * reveal claim. Scores may trail the winner's write by a few milliseconds;
+ * clients treat the ROUND_REVEALED broadcast as authoritative.
+ */
+async function buildRevealedResult(
+  roomCode: string,
+  roundNumber: number
+): Promise<RevealSuccessResponse | { error: string; status: number }> {
+  const round = await RoundModel.findOne({ roomCode, roundNumber }).lean();
+  if (!round) return { error: "Round not found.", status: 404 };
+
+  const room = await RoomModel.findOne({ roomCode }).lean();
+  if (!room) return { error: "Room not found.", status: 404 };
+
+  const players = room.players as Array<{
+    sessionId: string;
+    displayName: string;
+    score: number;
+    connected?: boolean;
+  }>;
+
+  const gameEnded = roundNumber >= players.length;
+
+  return {
+    round: serializeRound(round),
+    scoreDeltas: computeScoreDeltas(round, players),
+    scores: players.map((p) => ({
+      sessionId: p.sessionId,
+      displayName: p.displayName,
+      score: p.score,
+    })),
+    nextRound: gameEnded ? null : roundNumber + 1,
+    nextSubmitter: gameEnded
+      ? null
+      : {
+          sessionId: players[roundNumber % players.length].sessionId,
+          displayName: players[roundNumber % players.length].displayName,
+        },
+    gameEnded,
+  };
+}
 
 export function computeScoreDeltas(
   round: {
